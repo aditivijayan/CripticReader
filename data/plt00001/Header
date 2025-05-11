@@ -1,0 +1,40 @@
+HyperCLaw-V1.1
+12
+gasDensity
+x-GasMomentum
+y-GasMomentum
+z-GasMomentum
+gasEnergy
+gasInternalEnergy
+scalar_0
+scalar_1
+scalar_2
+x-velocity
+y-velocity
+z-velocity
+3
+782723018226.8291
+0
+0 0 -6.036e+21 
+3.018e+21 3.018e+21 6.036e+21 
+
+((0,0,0) (63,63,511) (0,0,0)) 
+1 
+4.715625e+19 4.715625e+19 2.3578125e+19 
+0
+0
+0 4 782723018226.8291
+1
+0 3.018e+21
+0 3.018e+21
+-6.036e+21 -3.018e+21
+0 3.018e+21
+0 3.018e+21
+-3.018e+21 0
+0 3.018e+21
+0 3.018e+21
+0 3.0180000000000005e+21
+0 3.018e+21
+0 3.018e+21
+3.0180000000000005e+21 6.036e+21
+Level_0/Cell
