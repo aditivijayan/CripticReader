@@ -5,23 +5,38 @@
 #include <string>
 #include <filesystem>
 
+// // The purpose of Array3DView to be able to access data by specifying its i,j,k
+// struct Array3DView {
+//     std::vector<double>& data;
+//     int nx, ny, nz;
+
+//     Array3DView(std::vector<double>& data, int nx, int ny, int nz)
+//         : data(data), nx(nx), ny(ny), nz(nz) {}
+
+//     double& operator()(int i, int j, int k) {
+//         return data[k * nx * ny + j * nx + i];
+//     }
+
+//     const double& operator()(int i, int j, int k) const {
+//         return data[k * nx * ny + j * nx + i];
+//     }
+// };
 
 struct Array3DView {
-    std::vector<double>& data;
+    const double* data_ptr;  // Pointer to external data
     int nx, ny, nz;
 
-    Array3DView(std::vector<double>& data, int nx, int ny, int nz)
-        : data(data), nx(nx), ny(ny), nz(nz) {}
+    Array3DView(const std::vector<double>& data, int nx_, int ny_, int nz_)
+        : data_ptr(data.data()), nx(nx_), ny(ny_), nz(nz_) {}
+
+    double operator()(int i, int j, int k) const {
+        return data_ptr[k * ny * nx + j * nx + i];
+    }
 
     double& operator()(int i, int j, int k) {
-        return data[k * nx * ny + j * nx + i];
-    }
-
-    const double& operator()(int i, int j, int k) const {
-        return data[k * nx * ny + j * nx + i];
+        return const_cast<double&>(data_ptr[k * ny * nx + j * nx + i]);
     }
 };
-
 
 
 struct Box {
@@ -31,9 +46,13 @@ struct Box {
 struct BlockData {
     int start_x, start_y, start_z;  // Start indices in x, y, z dimensions for the block
     int end_x, end_y, end_z;  // End indices in x, y, z dimensions for the block
+    std::vector<double> storage; 
     Array3DView data;  // 3D array for storing the cell data (density, velocity, etc.)
-    BlockData(std::vector<double>& d, int nx, int ny, int nz)
-        : data(d, nx, ny, nz) {}
+    // BlockData(std::vector<double>& d, int nx, int ny, int nz)
+    //     : data(d, nx, ny, nz) {}
+
+        BlockData(std::vector<double>&& d, int nx, int ny, int nz)
+        : storage(std::move(d)), data(storage, nx, ny, nz) {}
 };
 
 struct HeaderInfo {
@@ -121,7 +140,8 @@ void load_data(const std::string& filename, std::vector<BlockData>& blocks) {
                 // double value = flat_data[index];
                 // printf("Data: %.10e\n", value);
 
-            BlockData block(flat_data, nx, ny, nz);
+            // BlockData block(flat_data, nx, ny, nz);
+            BlockData block(std::move(flat_data), nx, ny, nz);
             block.start_x = start_x;
             block.start_y = start_y;
             block.start_z = start_z;

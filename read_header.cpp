@@ -39,7 +39,7 @@ int main() {
         load_data(cell_file, all_blocks);
         i+=1;
     }
-    double data = all_blocks[0].data(0, 0, 0);
+    double data = all_blocks[0].data(12, 1, 12);
     std::cout << "Data from all_blocks: " << data << "\n";
 
     //Initialize the data array for density and vx
@@ -47,28 +47,31 @@ int main() {
         std::vector<std::vector<double>>(hinfo.global_ny,
           std::vector<double>(hinfo.global_nz, 0.0)));
       
-    std::vector<std::vector<std::vector<double>>> vx = density; // copy structure
-    for (const auto& block : all_blocks) {
-        // std::cout << "Block: " << dumm11 << "\n";
-        int nx = block.end_x - block.start_x + 1;
-        int ny = block.end_y - block.start_y + 1;
-        int nz = block.end_z - block.start_z + 1;    
-        
-        int i0 = block.start_x;
-        int j0 = block.start_y;
-        int k0 = block.start_z;
+    // std::vector<std::vector<std::vector<double>>> vx = density; // copy structure
 
-        // std::cout << "Block data: " << block.data(0, 0, 0) << "\n";
-        for (int i = 0; i < nx; ++i) {
-            for (int j = 0; j < ny; ++j) {
-                for (int k = 0; k < nz; ++k) {
-                    std::cout << "i, j, k: " << i << " : " << j << " : " << k << "\n";
-                    density[i0 + i][j0 + j][k0 + k] = block.data(i, j, k);
-                    // vx[i0 + i][j0 + j][k0 + k]      = block.data(i, j, k);
-                }
-            }
-        }
-    }
+    BlockData block  = all_blocks[0];
+    std::cout << "Block data: " << block.data(12, 1, 12) << "\n";
+    // block.data = all_blocks[0].data;
+    // for (const auto& block : all_blocks) {
+        // int nx = block.end_x - block.start_x + 1;
+        // int ny = block.end_y - block.start_y + 1;
+        // int nz = block.end_z - block.start_z + 1;    
+        
+        // int i0 = block.start_x;
+        // int j0 = block.start_y;
+        // int k0 = block.start_z;
+        
+        
+        // for (int i = 0; i < nx; ++i) {
+        //     for (int j = 0; j < ny; ++j) {
+        //         for (int k = 0; k < nz; ++k) {
+        //             std::cout << "i, j, k: " << i << " : " << j << " : " << k << "\n";
+        //             density[i0 + i][j0 + j][k0 + k] = block.data(i, j, k);
+        //             // vx[i0 + i][j0 + j][k0 + k]      = block.data(i, j, k);
+        //         }
+        //     }
+        // }
+    // }
     // std::cout << "density: " << density[10][0][0] << "\n";
       
 
