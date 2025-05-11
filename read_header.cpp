@@ -51,29 +51,6 @@ int main() {
 
     BlockData block  = all_blocks[0];
     std::cout << "Block data: " << block.data(12, 1, 12) << "\n";
-    // block.data = all_blocks[0].data;
-    // for (const auto& block : all_blocks) {
-        // int nx = block.end_x - block.start_x + 1;
-        // int ny = block.end_y - block.start_y + 1;
-        // int nz = block.end_z - block.start_z + 1;    
-        
-        // int i0 = block.start_x;
-        // int j0 = block.start_y;
-        // int k0 = block.start_z;
-        
-        
-        // for (int i = 0; i < nx; ++i) {
-        //     for (int j = 0; j < ny; ++j) {
-        //         for (int k = 0; k < nz; ++k) {
-        //             std::cout << "i, j, k: " << i << " : " << j << " : " << k << "\n";
-        //             density[i0 + i][j0 + j][k0 + k] = block.data(i, j, k);
-        //             // vx[i0 + i][j0 + j][k0 + k]      = block.data(i, j, k);
-        //         }
-        //     }
-        // }
-    // }
-    // std::cout << "density: " << density[10][0][0] << "\n";
-      
-
+   
     return 0;
 }
