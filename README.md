@@ -1,7 +1,8 @@
 This is a rudimentary reader of QED data so that it can be processed by the code CRIPTIC.
 
-This is a work in progress. 
+This is a work in progress and currently only reads in the density information from a data file.
 
+To get this code working, follow these steps - 
 
 1. Clone this repo into your local directory of choice- 
 
