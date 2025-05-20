@@ -45,15 +45,58 @@ struct Box {
 };
 
 struct BlockData {
-    int start_x, start_y, start_z;  // Start indices in x, y, z dimensions for the block
-    int end_x, end_y, end_z;  // End indices in x, y, z dimensions for the block
-    std::vector<double> storage; 
-    Array3DView data;  // 3D array for storing the cell data (density, velocity, etc.)
-    // BlockData(std::vector<double>& d, int nx, int ny, int nz)
-    //     : data(d, nx, ny, nz) {}
+    int start_x, start_y, start_z;
+    int end_x, end_y, end_z;
+    std::vector<double> storage;
+    Array3DView data;
 
-        BlockData(std::vector<double>&& d, int nx, int ny, int nz)
+    // Constructor from rvalue vector
+    BlockData(std::vector<double>&& d, int nx, int ny, int nz)
         : storage(std::move(d)), data(storage, nx, ny, nz) {}
+
+    // Copy constructor
+    BlockData(const BlockData& other)
+        : start_x(other.start_x), start_y(other.start_y), start_z(other.start_z),
+          end_x(other.end_x), end_y(other.end_y), end_z(other.end_z),
+          storage(other.storage),  // copies vector
+          data(storage, other.data.nx, other.data.ny, other.data.nz) {}
+
+    // Move constructor
+    BlockData(BlockData&& other) noexcept
+        : start_x(other.start_x), start_y(other.start_y), start_z(other.start_z),
+          end_x(other.end_x), end_y(other.end_y), end_z(other.end_z),
+          storage(std::move(other.storage)),
+          data(storage, other.data.nx, other.data.ny, other.data.nz) {}
+
+    // Copy assignment
+    BlockData& operator=(const BlockData& other) {
+        if (this != &other) {
+            start_x = other.start_x;
+            start_y = other.start_y;
+            start_z = other.start_z;
+            end_x = other.end_x;
+            end_y = other.end_y;
+            end_z = other.end_z;
+            storage = other.storage;
+            data = Array3DView(storage, other.data.nx, other.data.ny, other.data.nz);
+        }
+        return *this;
+    }
+
+    // Move assignment
+    BlockData& operator=(BlockData&& other) noexcept {
+        if (this != &other) {
+            start_x = other.start_x;
+            start_y = other.start_y;
+            start_z = other.start_z;
+            end_x = other.end_x;
+            end_y = other.end_y;
+            end_z = other.end_z;
+            storage = std::move(other.storage);
+            data = Array3DView(storage, other.data.nx, other.data.ny, other.data.nz);
+        }
+        return *this;
+    }
 };
 
 struct HeaderInfo {
