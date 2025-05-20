@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <filesystem>
+#include <algorithm>
 
 // // The purpose of Array3DView to be able to access data by specifying its i,j,k
 // struct Array3DView {
