@@ -5,32 +5,17 @@
 #include <string>
 #include "read_header.hpp"
 
-
+namespace fs = std::filesystem;
 
 int main() {
-    std::string path =  "/Users/aditivijayan/Projects/SKA-obs/data/plt00001"; 
-    std::string header = path + "/Header";
+    std::string home = fs::current_path();
+    std::string data_path =  home + "/data/plt00001"; 
+    std::string header = data_path + "/Header";
 
-    std::cout << "Loading data from path: " << path << "\n";
+    std::cout << "Loading data from path: " << data_path << "\n";
     HeaderInfo hinfo = read_quokka_header(header);
-    
-    // std::cout << "Dimensionality: " << hinfo.dim << "\n";
-    // std::cout << "Variables (" << hinfo.num_components << "):\n";
-    // std::cout << "Dimensions : nx: " << hinfo.global_nx << " : ny :" << hinfo.global_ny << "\n";
-    // for (const auto& name : hinfo.variable_names) {
-    //     std::cout << "  " << name << "\n";
-    // }
 
-        // std::cout << "Boxes:\n";
-        // for (const auto& b : hinfo.boxes) {
-        //     std::cout << "  [" << b.xlo << "," << b.ylo << "," << b.zlo << "] to ["
-        //               << b.xhi << "," << b.yhi << "," << b.zhi << "]\n";
-        // }
-
-    
-   
-
-    std::string level_path = "/Users/aditivijayan/Projects/SKA-obs/data/plt00001/Level_0";
+    std::string level_path = data_path  + "/Level_0";
     std::vector<std::string> cell_files = get_all_cell_files(level_path);
 
     std::vector<BlockData> all_blocks;
