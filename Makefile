@@ -1,7 +1,7 @@
 # Makefile to compile the read_header program
 
 # Compiler
-CXX = g++-12
+CXX = g++-14
 
 # Compiler flags
 CXXFLAGS = -std=c++17
