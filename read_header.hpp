@@ -25,17 +25,22 @@
 
 struct Array3DView {
     const double* data_ptr;  // Pointer to external data
-    int nx, ny, nz;
-
+    //int nx, ny, nz;
+    int nx=64;
+    int ny=64;
+    int nz=128;
     Array3DView(const std::vector<double>& data, int nx_, int ny_, int nz_)
-        : data_ptr(data.data()), nx(nx_), ny(ny_), nz(nz_) {}
+        : data_ptr(data.data()), nx(nx_), ny(ny_), nz(nz_) {
+            
+        }
 
     double operator()(int i, int j, int k) const {
         return data_ptr[k * ny * nx + j * nx + i];
     }
 
     double& operator()(int i, int j, int k) {
-        return const_cast<double&>(data_ptr[k * ny * nx + j * nx + i]);
+        //std::cout << std::endl << "nx: " << nx << ", ny: " << ny << ", nz: " << nz << std::endl;
+        return const_cast<double&>(data_ptr[k * nx * ny + j * nx+ i]);
     }
 };
 
@@ -97,6 +102,27 @@ struct BlockData {
         }
         return *this;
     }
+
+    // Divide operator
+    BlockData& operator/=(double divisor) {
+        for (auto& value : storage) {
+            value /= divisor;
+        }
+        return *this;
+    }
+    // Divide operator for another BlockData object
+BlockData operator/(const BlockData& other) const {
+    if (storage.size() != other.storage.size()) {
+        std::cerr << "Sizes: " << storage.size() << " and " << other.storage.size() << std::endl;
+        throw std::runtime_error("BlockData sizes do not match for division.");
+    }
+    BlockData result = *this;
+    for (size_t i = 0; i < storage.size(); ++i) {
+        result.storage[i] /= other.storage[i];
+    }
+    return result;
+}
+
 };
 
 struct HeaderInfo {
@@ -112,8 +138,8 @@ struct HeaderInfo {
     std::vector<Box> boxes;
 };
 
-
-void read_cell_data(const std::string& cell_file, const Box& box, std::vector<float>& data) {
+//The following function isn't used in the code
+void read_cell_data(const std::string& cell_file, const Box& box, std::vector<float>& data) { // check if you need to modify this for v_x instead of density
     std::ifstream infile(cell_file, std::ios::binary);
     if (!infile) {
         throw std::runtime_error("Unable to open cell file: " + cell_file);
@@ -123,12 +149,22 @@ void read_cell_data(const std::string& cell_file, const Box& box, std::vector<fl
     int ny = box.yhi - box.ylo + 1;
     int nz = box.zhi - box.zlo + 1;
     int num_cells = nx * ny * nz;
+    
+
+    //print the location of the pointer
+    std::cout << "Current position: " << infile.tellg() << std::endl;
+
+    // Seek to the offset (skip first num_cells floats) // To read the velocity information
+    //infile.seekg(num_cells * sizeof(float), std::ios::beg);
+
+    //print the location of the pointer
+    std::cout << "Current position after seek: " << infile.tellg() << std::endl;
 
     // Resize the data array
     data.resize(num_cells);
 
     // Read binary data into the array
-    infile.read(reinterpret_cast<char*>(data.data()), num_cells * sizeof(float));
+    infile.read(reinterpret_cast<char*>(data.data()), num_cells * sizeof(float));  // Check this line, especially the starting pointer 
 
     if (!infile) {
         throw std::runtime_error("Error reading data from: " + cell_file);
@@ -138,9 +174,9 @@ void read_cell_data(const std::string& cell_file, const Box& box, std::vector<fl
 
 //Go over a single cell file and store all the data in a BlockData object
 
-void load_data(const std::string& filename, std::vector<BlockData>& blocks) {
+void load_data(const std::string& filename, std::vector<BlockData>& blocks, int phys_var) { //phys_var is the variable to read, e.g. 0 for density, 1 for momentum_x, etc.
     std::ifstream infile(filename);
-    std::cout << "Loading data from: " << filename << std::endl;
+    //std::cout << "Loading data from: " << filename << std::endl;
     std::string line;
 
     if (!infile.is_open()) {
@@ -174,15 +210,20 @@ void load_data(const std::string& filename, std::vector<BlockData>& blocks) {
             int num_cells_block = (end_x - start_x + 1) * (end_y - start_y + 1) * (end_z - start_z + 1);
             
             std::vector<double> flat_data(num_cells_block);
-            infile.read(reinterpret_cast<char*>(flat_data.data()), num_cells_block * sizeof(double));
+            //print the location of the pointer
+            //std::cout << "Current position: " << infile.tellg() << std::endl;
+            infile.seekg(phys_var * num_cells_block * sizeof(double), std::ios::cur);  // Skip first block, for reading velocity information
+            //print the location of the pointer
+            //std::cout << "Current position after seek: " << infile.tellg() << std::endl;
+            infile.read(reinterpret_cast<char*>(flat_data.data()), num_cells_block * sizeof(double));  //check this line, especially the starting pointer
                 // int i = 0;
                 // int j = 0;
                 // int k = 0;
-                
-                // int index = k * nx * ny + j * nx + i; // Assuming row-major order
-                
-                // double value = flat_data[index];
-                // printf("Data: %.10e\n", value);
+                // for (const auto& value : flat_data) {
+                //     int index = k * nx * ny + j * nx + i; // Assuming row-major order
+
+                //     double value = flat_data[index];
+                //     printf("Data: %.10e\n", value);
 
             // BlockData block(flat_data, nx, ny, nz);
             BlockData block(std::move(flat_data), nx, ny, nz);
@@ -216,7 +257,7 @@ HeaderInfo read_quokka_header(const std::string& header_path) {
     std::getline(infile, line);
     info.num_components = 0;
     //Read variable names
-    while(line.find("z-velocity")!=0 ) {
+    while(line.find("z-velocity")!=0 ) {    
         std::getline(infile, line);
         info.variable_names.push_back(line);
         info.num_components++;
@@ -283,7 +324,7 @@ HeaderInfo read_quokka_header(const std::string& header_path) {
         //Read Y limits
         std::getline(infile, line);
         ss.clear(); ss.str(line);
-        ss >> b.ylo >> b.yhi; 
+        ss >> b.ylo >> b.yhi;
 
         //Read Z limits
         std::getline(infile, line);
@@ -304,7 +345,7 @@ namespace fs = std::filesystem;
 
 std::vector<std::string> get_all_cell_files(const std::string& level_dir) {
     std::vector<std::string> cell_files;
-    for (const auto& entry : fs::directory_iterator(level_dir)) {
+    for (const auto& entry : std::filesystem::directory_iterator(level_dir)) {
         if (entry.is_regular_file()) {
             std::string name = entry.path().filename().string();
             if (name.rfind("Cell_D_", 0) == 0) {  // name starts with "Cell_D_"
