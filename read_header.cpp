@@ -40,12 +40,62 @@ void print_var_value_at_coordinates(const std::vector<std::vector<std::vector<st
         std::cout << "Velocity_y at (" << x << ", " << y << ", " << z << "): ";
     } else if (var_index==6) {
         std::cout << "Velocity_z at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==7) {
+        std::cout << "Kinetic_energy at (" << x << ", " << y << ", " << z << "): ";
     } else {
         std::cerr << "Unknown variable index.\n";
         return;
     }
-    std::cout << "Value at (" << x << ", " << y << ", " << z << ") for density" << ": "
-              << phys_var[var_index][x][y][z] << "\n";
+    std::cout << phys_var[var_index][x][y][z] << "\n";
+}
+
+double total_amount(const std::vector<std::vector<std::vector<double>>>& variable_density, 
+                  const HeaderInfo& hinfo) {
+    double total = 0.0;
+    for (const auto& plane : variable_density) {
+        for (const auto& row : plane) {
+            for (const auto& value : row) {
+                total += value;
+            }
+        }
+    }
+    double dV= (hinfo.domain_hi[0] - hinfo.domain_lo[0]) * 
+         (hinfo.domain_hi[1] - hinfo.domain_lo[1]) * 
+         (hinfo.domain_hi[2] - hinfo.domain_lo[2]) / 
+         (hinfo.global_nx * hinfo.global_ny * hinfo.global_nz);
+    return total * dV;
+}
+
+std::vector<std::vector<std::vector<double>>> kinetic_energy_density(
+    const std::vector<std::vector<std::vector<double>>>& velociy_x,
+    const std::vector<std::vector<std::vector<double>>>& velociy_y,
+    const std::vector<std::vector<std::vector<double>>>& velociy_z,
+    const std::vector<std::vector<std::vector<double>>>& density
+){
+    //check if the dimensions of the input arrays match
+    if (velociy_x.size() != velociy_y.size() || 
+        velociy_x.size() != velociy_z.size() || 
+        velociy_x.size() != density.size()) {
+        std::cerr << "Dimension mismatch in kinetic energy density calculation.\n";
+        return {};
+    }
+
+    std::vector<std::vector<std::vector<double>>> kinetic_energy(density.size(),
+        std::vector<std::vector<double>>(density[0].size(),
+            std::vector<double>(density[0][0].size(), 0.0)));
+
+    for (size_t i = 0; i < density.size(); ++i) {
+        for (size_t j = 0; j < density[i].size(); ++j) {
+            for (size_t k = 0; k < density[i][j].size(); ++k) {
+                double vel_sq = velociy_x[i][j][k] * velociy_x[i][j][k] +
+                                velociy_y[i][j][k] * velociy_y[i][j][k] +
+                                velociy_z[i][j][k] * velociy_z[i][j][k];
+                kinetic_energy[i][j][k] = 0.5 * density[i][j][k] * vel_sq;
+            }
+        }
+    }
+
+    return kinetic_energy;
 }
 
 int main() {
@@ -218,5 +268,28 @@ int main() {
     std::cout << "All blocks variables and velocity blocks merged.\n";
     std::cout << "Total number of physical variables(size of all_blocks_variables (2D array of BlockData)): " << all_blocks_variables.size() << "\n";
 
-     return 0;
+
+
+
+    double mass = total_amount(phys_var[0], hinfo);
+    std::cout << "Total mass in the domain: " << mass << " g\n";
+
+    // Calculate kinetic energy density
+    std::vector<std::vector<std::vector<double>>> kinetic_energy = kinetic_energy_density(phys_var[4], phys_var[5], phys_var[6], phys_var[0]);
+    if (kinetic_energy.empty()) {
+        std::cerr << "Failed to calculate kinetic energy density.\n";
+        return 1;
+    }
+
+    //append kinetic energy density to phys_var
+    phys_var.push_back(kinetic_energy);
+    std::cout << "Kinetic energy density calculated and added to phys_var at position " << phys_var.size() - 1 << ".\n";
+
+    // Print the kinetic energy density at a specific index, e.g., (12, 1, 76)
+    print_var_value_at_coordinates(phys_var, 7, 12, 1, 12); // 7 is the index for kinetic energy density
+
+    double total_kinetic_energy = total_amount(kinetic_energy, hinfo);
+    std::cout << "Total kinetic energy in the domain: " << total_kinetic_energy << " erg\n";
+
+    return 0;
 }
