@@ -355,4 +355,164 @@ std::vector<std::string> get_all_cell_files(const std::string& level_dir) {
     }
     std::sort(cell_files.begin(), cell_files.end());  // optional but useful
     return cell_files;
+    }
+
+    void print_2D_data(const std::vector<std::vector<double>>& data_2D_vector) {
+    for (const auto& row : data_2D_vector) {
+        for (const auto& value : row) {
+            std::cout << value << " ";
+        }
+        std::cout << "\n";
+    }
 }
+void print_var_value_at_coordinates(const std::vector<std::vector<std::vector<std::vector<double>>>>& phys_var, int var_index, int x, int y, int z) {
+    if (var_index < 0 || var_index >= phys_var.size()) {
+        std::cerr << "Variable index out of bounds.\n";
+        return;
+    }
+    if (x < 0 || x >= phys_var[var_index].size() ||
+        y < 0 || y >= phys_var[var_index][0].size() ||
+        z < 0 || z >= phys_var[var_index][0][0].size()) {
+        std::cerr << "Coordinates out of bounds.\n";
+        return;
+    }
+    if (var_index==0){
+        std::cout << "Density (in g/cm^3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==1) {
+        std::cout << "Velocity_x (in cm/s) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==2) {
+        std::cout << "Velocity_y (in cm/s) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==3) {
+        std::cout << "Velocity_z (in cm/s) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==4) {
+        std::cout << "Internal_energy (in ergs) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==5) {
+        std::cout << "Kinetic_energy (in ergs) at (" << x << ", " << y << ", " << z << "): ";
+    } else {
+        std::cerr << "Unknown variable index.\n";
+        return;
+    }
+    std::cout << phys_var[var_index][x][y][z] << "\n";
+}
+
+double total_amount(const std::vector<std::vector<std::vector<double>>>& variable_density, 
+                const HeaderInfo& hinfo) {
+    double total = 0.0;
+    for (const auto& plane : variable_density) {
+        for (const auto& row : plane) {
+            for (const auto& value : row) {
+                total += value;
+            }
+        }
+    }
+    double dV= (hinfo.domain_hi[0] - hinfo.domain_lo[0]) * 
+         (hinfo.domain_hi[1] - hinfo.domain_lo[1]) * 
+        (hinfo.domain_hi[2] - hinfo.domain_lo[2]) / 
+         (hinfo.global_nx * hinfo.global_ny * hinfo.global_nz);
+    return total * dV;
+}
+
+std::vector<std::vector<std::vector<double>>> kinetic_energy_density(
+    const std::vector<std::vector<std::vector<double>>>& velocity_x,
+    const std::vector<std::vector<std::vector<double>>>& velocity_y,
+    const std::vector<std::vector<std::vector<double>>>& velocity_z,
+    const std::vector<std::vector<std::vector<double>>>& density
+){
+    //check if the dimensions of the input arrays match
+    if (velocity_x.size() != velocity_y.size() || 
+        velocity_x.size() != velocity_z.size() || 
+        velocity_x.size() != density.size()) {
+        std::cerr << "Dimension mismatch in kinetic energy density calculation.\n";
+        return {};
+    }
+
+    std::vector<std::vector<std::vector<double>>> kinetic_energy(density.size(),
+        std::vector<std::vector<double>>(density[0].size(),
+            std::vector<double>(density[0][0].size(), 0.0)));
+
+    for (size_t i = 0; i < density.size(); ++i) {
+        for (size_t j = 0; j < density[i].size(); ++j) {
+            for (size_t k = 0; k < density[i][j].size(); ++k) {
+                double vel_sq = velocity_x[i][j][k] * velocity_x[i][j][k] +
+                                velocity_y[i][j][k] * velocity_y[i][j][k] +
+                                velocity_z[i][j][k] * velocity_z[i][j][k];
+                kinetic_energy[i][j][k] = 0.5 * density[i][j][k] * vel_sq;
+            }
+        }
+    }
+
+    return kinetic_energy;
+}
+
+
+void validate(const std::vector<std::vector<std::vector<std::vector<double>>>>& phys_var, HeaderInfo& hinfo, std::vector<int> indices ={12,1,12}, bool c=true) {
+    if (c) {
+        // Check if the dimensions of the physical variables are consistent
+        for (const auto& var : phys_var) {
+            if (var.size() != phys_var[0].size() || var[0].size() != phys_var[0][0].size()) {
+                std::cerr << "Inconsistent dimensions found in physical variables.\n";
+                return;
+            }
+        }
+        // Check if the indices are within bounds
+        for (const auto& index : indices) {
+            if (index < 0 || index >= phys_var[0].size()) {
+                std::cerr << "Index out of bounds: " << index << "\n";
+                return;
+            }
+        }
+
+
+        std::cout << "All physical variables have consistent dimensions.\n";
+        for (int i=0; i<phys_var.size(); i++){
+            print_var_value_at_coordinates(phys_var, i, indices[0],indices[1], indices[2]);
+        }
+    }
+
+    std::cout<< "Total mass of the domain is "<<total_amount(phys_var[0], hinfo)<< std::endl;
+    std::cout<< "Total Kinetic Energy of the domain is "<<total_amount(phys_var[5], hinfo)<< std::endl;
+    std::cout<< "Total Internal Energy of the domain is "<<total_amount(phys_var[4], hinfo)<< std::endl;
+
+        //Print the maximum and minimum values and positions of various physical parameters
+    for (int var_idx = 0; var_idx < phys_var.size(); ++var_idx) {
+            double min_val = std::numeric_limits<double>::max();
+            double max_val = std::numeric_limits<double>::lowest();
+            std::tuple<int, int, int> min_pos, max_pos;
+
+        for (int i = 0; i < phys_var[var_idx].size(); ++i) {
+            for (int j = 0; j < phys_var[var_idx][i].size(); ++j) {
+                for (int k = 0; k < phys_var[var_idx][i][j].size(); ++k) {
+                double val = phys_var[var_idx][i][j][k];
+                if (val < min_val) {
+                    min_val = val;
+                    min_pos = std::make_tuple(i, j, k);
+                }
+                if (val > max_val) {
+                    max_val = val;
+                    max_pos = std::make_tuple(i, j, k);
+                }
+                }
+            }
+            }
+    std::string var_name = hinfo.variable_names[var_idx];
+        if (var_name == "gasDensity") {
+            var_name = "Density (g/cm^3)";
+        } else if (var_name == "x-GasMomentum") {
+            var_name = "Velocity_x (cm/s)";
+        } else if (var_name == "y-GasMomentum") {
+            var_name = "Velocity_y (cm/s)";
+        } else if (var_name == "z-GasMomentum") {
+            var_name = "Velocity_z (cm/s)";
+        } else if (var_name == "gasEnergy") {
+            var_name = "Internal Energy (ergs)";
+        } else if (var_name == "gasInternalEnergy") {
+            var_name = "Kinetic Energy (ergs)";
+        }
+        std::cout << "Variable: " << var_name << " (index " << var_idx << "): "
+                << "min = " << min_val
+                << " at (" << std::get<0>(min_pos) << ", " << std::get<1>(min_pos) << ", " << std::get<2>(min_pos) << ")"
+                << ", max = " << max_val
+                << " at (" << std::get<0>(max_pos) << ", " << std::get<1>(max_pos) << ", " << std::get<2>(max_pos) << ")\n";
+    }
+}
+
