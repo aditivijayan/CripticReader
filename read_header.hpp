@@ -15,7 +15,6 @@ struct Array3DView {
     int nz=128;
     Array3DView(const std::vector<double>& data, int nx_, int ny_, int nz_)
         : data_ptr(data.data()), nx(nx_), ny(ny_), nz(nz_) {
-            
         }
 
     double operator()(int i, int j, int k) const {
@@ -23,7 +22,6 @@ struct Array3DView {
     }
 
     double& operator()(int i, int j, int k) {
-        //std::cout << std::endl << "nx: " << nx << ", ny: " << ny << ", nz: " << nz << std::endl;
         return const_cast<double&>(data_ptr[k * nx * ny + j * nx+ i]);
     }
 };
