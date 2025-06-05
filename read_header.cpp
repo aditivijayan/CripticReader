@@ -47,13 +47,6 @@ int main() {
             
         }
     }
-
-    // // To get velocity in km/s, we can divide the velocity by 100000
-    // for (auto& block : all_blocks_variables_velocity) {
-    //     for (auto& data_block : block) {
-    //         data_block /= 100000.0; // Convert to km/s
-    //     }
-    // }
     
     // Replace the momentum variables in all_blocks_variables with the velocity blocks
     all_blocks_variables[1] = all_blocks_variables_velocity[0]; // Replace momentum_x with velocity_x
@@ -89,19 +82,6 @@ int main() {
             }
     }
     }
-    //Quick check to see if the data is filled correctly
-    // int i=12;
-    // int j=1;
-    // int k=44;
-    // std::cout << "Values at (" << i << ", " << j << ", " << k << "):\n";
-    // for (int var = 0; var < phys_var.size(); ++var) {
-    //     // Print the value of the variable at (12, 1, 12)
-    //     print_var_value_at_coordinates(phys_var, var, i, j, k);
-    // }
-
-    std::cout << "Velocity blocks created and converted to km/s.\n";
-    std::cout << "Total number of physical variables(size of all_blocks_variables (2D array of BlockData)): " << all_blocks_variables.size() << "\n";
-
 
     // Calculate kinetic energy density in ergs/cm^3
     std::vector<std::vector<std::vector<double>>> kinetic_energy = kinetic_energy_density(phys_var[1], phys_var[2], phys_var[3], phys_var[0]); //input is velocity_x, velocity_y, velocity_z, density
@@ -109,10 +89,6 @@ int main() {
         std::cerr << "Failed to calculate kinetic energy density.\n";
         return 1;
     }
-
-    //append kinetic energy density to phys_var
-    phys_var.push_back(kinetic_energy);
-    std::cout << "Kinetic energy density calculated and added to phys_var at index " << phys_var.size() - 1 << ".\n";
 
     // Validate the data
     std::vector<int> indices = {0, 55, 63}; // Example indices to validate

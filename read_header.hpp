@@ -267,7 +267,7 @@ HeaderInfo read_quokka_header(const std::string& header_path) {
     std::getline(infile, line);
     info.dim = std::stoi(line);
     
-    // Read currrent time
+    // Read current time
     std::getline(infile, line); 
     info.curr_time = std::stol(line);
 
@@ -357,14 +357,7 @@ std::vector<std::string> get_all_cell_files(const std::string& level_dir) {
     return cell_files;
     }
 
-    void print_2D_data(const std::vector<std::vector<double>>& data_2D_vector) {
-    for (const auto& row : data_2D_vector) {
-        for (const auto& value : row) {
-            std::cout << value << " ";
-        }
-        std::cout << "\n";
-    }
-}
+// Function to print the value of a physical variable at specific coordinates
 void print_var_value_at_coordinates(const std::vector<std::vector<std::vector<std::vector<double>>>>& phys_var, int var_index, int x, int y, int z) {
     if (var_index < 0 || var_index >= phys_var.size()) {
         std::cerr << "Variable index out of bounds.\n";
@@ -386,9 +379,8 @@ void print_var_value_at_coordinates(const std::vector<std::vector<std::vector<st
         std::cout << "Velocity_z (in cm/s) at (" << x << ", " << y << ", " << z << "): ";
     } else if (var_index==4) {
         std::cout << "Internal_energy (in ergs) at (" << x << ", " << y << ", " << z << "): ";
-    } else if (var_index==5) {
-        std::cout << "Kinetic_energy (in ergs) at (" << x << ", " << y << ", " << z << "): ";
-    } else {
+    } 
+    else {
         std::cerr << "Unknown variable index.\n";
         return;
     }
@@ -505,8 +497,6 @@ void validate(const std::vector<std::vector<std::vector<std::vector<double>>>>& 
             var_name = "Velocity_z (cm/s)";
         } else if (var_name == "gasEnergy") {
             var_name = "Internal Energy (ergs)";
-        } else if (var_name == "gasInternalEnergy") {
-            var_name = "Kinetic Energy (ergs)";
         }
         std::cout << "Variable: " << var_name << " (index " << var_idx << "): "
                 << "min = " << min_val
