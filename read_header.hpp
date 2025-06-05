@@ -6,22 +6,6 @@
 #include <filesystem>
 #include <algorithm>
 
-// // The purpose of Array3DView to be able to access data by specifying its i,j,k
-// struct Array3DView {
-//     std::vector<double>& data;
-//     int nx, ny, nz;
-
-//     Array3DView(std::vector<double>& data, int nx, int ny, int nz)
-//         : data(data), nx(nx), ny(ny), nz(nz) {}
-
-//     double& operator()(int i, int j, int k) {
-//         return data[k * nx * ny + j * nx + i];
-//     }
-
-//     const double& operator()(int i, int j, int k) const {
-//         return data[k * nx * ny + j * nx + i];
-//     }
-// };
 
 struct Array3DView {
     const double* data_ptr;  // Pointer to external data
@@ -137,42 +121,6 @@ struct HeaderInfo {
     std::vector<std::string> variable_names;
     std::vector<Box> boxes;
 };
-
-//The following function isn't used in the code
-void read_cell_data(const std::string& cell_file, const Box& box, std::vector<float>& data) { // check if you need to modify this for v_x instead of density
-    std::ifstream infile(cell_file, std::ios::binary);
-    if (!infile) {
-        throw std::runtime_error("Unable to open cell file: " + cell_file);
-    }
-
-    int nx = box.xhi - box.xlo + 1;
-    int ny = box.yhi - box.ylo + 1;
-    int nz = box.zhi - box.zlo + 1;
-    int num_cells = nx * ny * nz;
-    
-
-    //print the location of the pointer
-    std::cout << "Current position: " << infile.tellg() << std::endl;
-
-    // Seek to the offset (skip first num_cells floats) // To read the velocity information
-    //infile.seekg(num_cells * sizeof(float), std::ios::beg);
-
-    //print the location of the pointer
-    std::cout << "Current position after seek: " << infile.tellg() << std::endl;
-
-    // Resize the data array
-    data.resize(num_cells);
-
-    // Read binary data into the array
-    infile.read(reinterpret_cast<char*>(data.data()), num_cells * sizeof(float));  // Check this line, especially the starting pointer 
-
-    if (!infile) {
-        throw std::runtime_error("Error reading data from: " + cell_file);
-    }
-}
-
-
-//Go over a single cell file and store all the data in a BlockData object
 
 void load_data(const std::string& filename, std::vector<BlockData>& blocks, int phys_var) { //phys_var is the variable to read, e.g. 0 for density, 1 for momentum_x, etc.
     std::ifstream infile(filename);
@@ -462,7 +410,6 @@ void validate(const std::vector<std::vector<std::vector<std::vector<double>>>>& 
     }
 
     std::cout<< "Total mass of the domain is "<<total_amount(phys_var[0], hinfo)<< std::endl;
-    std::cout<< "Total Kinetic Energy of the domain is "<<total_amount(phys_var[5], hinfo)<< std::endl;
     std::cout<< "Total Internal Energy of the domain is "<<total_amount(phys_var[4], hinfo)<< std::endl;
 
         //Print the maximum and minimum values and positions of various physical parameters

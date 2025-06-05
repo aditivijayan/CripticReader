@@ -26,18 +26,18 @@ int main() {
         std::cerr << "No cell files found in the specified directory." << std::endl<< std::endl;
         return 1;
     }
-    
-    for(int i=0; i<4; ++i) { // Read 4 variables: density, momentum_x, momentum_y, momentum_z
-        for (const auto& cell_file : cell_files) {
-            //std::cout << "Loading data from file: " << cell_file << " for variable index: " << i << "\n";
+
+    for(int i=0; i<5; ++i) { // Read 5 variables: density, momentum_x, momentum_y, momentum_z, internal energy
+        if(i>=4) {
+            for (const auto& cell_file : cell_files) {
+            load_data(cell_file, all_blocks_variables[i], i+1); // Assuming 5 is the index for internal energy density
+            }
+        }else{
+            for (const auto& cell_file : cell_files) {
             load_data(cell_file, all_blocks_variables[i], i);
+            }
         }
     }
-    for (const auto& cell_file : cell_files) {
-        // Load internal energy data (assuming it's the 4th variable loaded into the index 4)
-        load_data(cell_file, all_blocks_variables[4], 5); // Assuming 5 is the index for internal energy density 
-    }
-
     std::vector<std::vector<BlockData>> all_blocks_variables_velocity(3, std::vector<BlockData>());
 
     for (int i=1; i<4; ++i) { // Loop over momentum variables
