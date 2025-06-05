@@ -124,7 +124,6 @@ struct HeaderInfo {
 
 void load_data(const std::string& filename, std::vector<BlockData>& blocks, int phys_var) { //phys_var is the variable to read, e.g. 0 for density, 1 for momentum_x, etc.
     std::ifstream infile(filename);
-    //std::cout << "Loading data from: " << filename << std::endl;
     std::string line;
 
     if (!infile.is_open()) {
