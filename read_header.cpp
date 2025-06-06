@@ -64,15 +64,12 @@ int main() {
     for (int var = 0; var < all_blocks_variables.size(); ++var) {
         for (int blk = 0; blk < all_blocks_variables[var].size(); ++blk) {
             const BlockData& block = all_blocks_variables[var][blk];
-            //std::cout << "Processing variable: " << var << ", block: " << blk << " with start indices (" << block.start_x << ", " << block.start_y << ", " << block.start_z << ") and end indices (" 
-            //          << block.end_x << ", " << block.end_y << ", " << block.end_z << ")\n";
             if (block.start_x < 0 || block.end_x >= hinfo.global_nx ||
                 block.start_y < 0 || block.end_y >= hinfo.global_ny ||
                 block.start_z < 0 || block.end_z >= hinfo.global_nz) {
                 std::cerr << "Block indices out of bounds for global dimensions.\n";
                 continue;
             }
-            //std::cout << "Filling data for variable: " << var << ", block: " << blk << "\n";
             for (int i = block.start_x; i <= block.end_x; ++i) {
                 for (int j = block.start_y; j <= block.end_y; ++j) {
                     for (int k = block.start_z; k <= block.end_z; ++k) {

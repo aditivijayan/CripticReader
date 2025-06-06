@@ -9,7 +9,6 @@
 
 struct Array3DView {
     const double* data_ptr;  // Pointer to external data
-    //int nx, ny, nz;
     int nx=64;
     int ny=64;
     int nz=128;
@@ -155,22 +154,9 @@ void load_data(const std::string& filename, std::vector<BlockData>& blocks, int 
             int num_cells_block = (end_x - start_x + 1) * (end_y - start_y + 1) * (end_z - start_z + 1);
             
             std::vector<double> flat_data(num_cells_block);
-            //print the location of the pointer
-            //std::cout << "Current position: " << infile.tellg() << std::endl;
             infile.seekg(phys_var * num_cells_block * sizeof(double), std::ios::cur);  // Skip first block, for reading velocity information
-            //print the location of the pointer
-            //std::cout << "Current position after seek: " << infile.tellg() << std::endl;
             infile.read(reinterpret_cast<char*>(flat_data.data()), num_cells_block * sizeof(double));  //check this line, especially the starting pointer
-                // int i = 0;
-                // int j = 0;
-                // int k = 0;
-                // for (const auto& value : flat_data) {
-                //     int index = k * nx * ny + j * nx + i; // Assuming row-major order
 
-                //     double value = flat_data[index];
-                //     printf("Data: %.10e\n", value);
-
-            // BlockData block(flat_data, nx, ny, nz);
             BlockData block(std::move(flat_data), nx, ny, nz);
             block.start_x = start_x;
             block.start_y = start_y;
