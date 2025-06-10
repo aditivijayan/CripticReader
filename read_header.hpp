@@ -9,9 +9,8 @@
 
 struct Array3DView {
     const double* data_ptr;  // Pointer to external data
-    int nx=64;
-    int ny=64;
-    int nz=128;
+    int nx, ny, nz;  // Dimensions of the 3D array
+
     Array3DView(const std::vector<double>& data, int nx_, int ny_, int nz_)
         : data_ptr(data.data()), nx(nx_), ny(ny_), nz(nz_) {
         }
