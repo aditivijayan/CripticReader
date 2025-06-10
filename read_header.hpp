@@ -6,36 +6,21 @@
 #include <filesystem>
 #include <algorithm>
 
-// // The purpose of Array3DView to be able to access data by specifying its i,j,k
-// struct Array3DView {
-//     std::vector<double>& data;
-//     int nx, ny, nz;
-
-//     Array3DView(std::vector<double>& data, int nx, int ny, int nz)
-//         : data(data), nx(nx), ny(ny), nz(nz) {}
-
-//     double& operator()(int i, int j, int k) {
-//         return data[k * nx * ny + j * nx + i];
-//     }
-
-//     const double& operator()(int i, int j, int k) const {
-//         return data[k * nx * ny + j * nx + i];
-//     }
-// };
 
 struct Array3DView {
     const double* data_ptr;  // Pointer to external data
-    int nx, ny, nz;
+    int nx, ny, nz;  // Dimensions of the 3D array
 
     Array3DView(const std::vector<double>& data, int nx_, int ny_, int nz_)
-        : data_ptr(data.data()), nx(nx_), ny(ny_), nz(nz_) {}
+        : data_ptr(data.data()), nx(nx_), ny(ny_), nz(nz_) {
+        }
 
     double operator()(int i, int j, int k) const {
         return data_ptr[k * ny * nx + j * nx + i];
     }
 
     double& operator()(int i, int j, int k) {
-        return const_cast<double&>(data_ptr[k * ny * nx + j * nx + i]);
+        return const_cast<double&>(data_ptr[k * nx * ny + j * nx+ i]);
     }
 };
 
@@ -97,6 +82,27 @@ struct BlockData {
         }
         return *this;
     }
+
+    // Divide operator
+    BlockData& operator/=(double divisor) {
+        for (auto& value : storage) {
+            value /= divisor;
+        }
+        return *this;
+    }
+    // Divide operator for another BlockData object
+BlockData operator/(const BlockData& other) const {
+    if (storage.size() != other.storage.size()) {
+        std::cerr << "Sizes: " << storage.size() << " and " << other.storage.size() << std::endl;
+        throw std::runtime_error("BlockData sizes do not match for division.");
+    }
+    BlockData result = *this;
+    for (size_t i = 0; i < storage.size(); ++i) {
+        result.storage[i] /= other.storage[i];
+    }
+    return result;
+}
+
 };
 
 struct HeaderInfo {
@@ -112,35 +118,8 @@ struct HeaderInfo {
     std::vector<Box> boxes;
 };
 
-
-void read_cell_data(const std::string& cell_file, const Box& box, std::vector<float>& data) {
-    std::ifstream infile(cell_file, std::ios::binary);
-    if (!infile) {
-        throw std::runtime_error("Unable to open cell file: " + cell_file);
-    }
-
-    int nx = box.xhi - box.xlo + 1;
-    int ny = box.yhi - box.ylo + 1;
-    int nz = box.zhi - box.zlo + 1;
-    int num_cells = nx * ny * nz;
-
-    // Resize the data array
-    data.resize(num_cells);
-
-    // Read binary data into the array
-    infile.read(reinterpret_cast<char*>(data.data()), num_cells * sizeof(float));
-
-    if (!infile) {
-        throw std::runtime_error("Error reading data from: " + cell_file);
-    }
-}
-
-
-//Go over a single cell file and store all the data in a BlockData object
-
-void load_data(const std::string& filename, std::vector<BlockData>& blocks) {
+void load_data(const std::string& filename, std::vector<BlockData>& blocks, int phys_var) { //phys_var is the variable to read, e.g. 0 for density, 1 for momentum_x, etc.
     std::ifstream infile(filename);
-    std::cout << "Loading data from: " << filename << std::endl;
     std::string line;
 
     if (!infile.is_open()) {
@@ -174,17 +153,9 @@ void load_data(const std::string& filename, std::vector<BlockData>& blocks) {
             int num_cells_block = (end_x - start_x + 1) * (end_y - start_y + 1) * (end_z - start_z + 1);
             
             std::vector<double> flat_data(num_cells_block);
-            infile.read(reinterpret_cast<char*>(flat_data.data()), num_cells_block * sizeof(double));
-                // int i = 0;
-                // int j = 0;
-                // int k = 0;
-                
-                // int index = k * nx * ny + j * nx + i; // Assuming row-major order
-                
-                // double value = flat_data[index];
-                // printf("Data: %.10e\n", value);
+            infile.seekg(phys_var * num_cells_block * sizeof(double), std::ios::cur);  // Skip first block, for reading velocity information
+            infile.read(reinterpret_cast<char*>(flat_data.data()), num_cells_block * sizeof(double));  //check this line, especially the starting pointer
 
-            // BlockData block(flat_data, nx, ny, nz);
             BlockData block(std::move(flat_data), nx, ny, nz);
             block.start_x = start_x;
             block.start_y = start_y;
@@ -216,7 +187,7 @@ HeaderInfo read_quokka_header(const std::string& header_path) {
     std::getline(infile, line);
     info.num_components = 0;
     //Read variable names
-    while(line.find("z-velocity")!=0 ) {
+    while(line.find("z-velocity")!=0 ) {    
         std::getline(infile, line);
         info.variable_names.push_back(line);
         info.num_components++;
@@ -226,7 +197,7 @@ HeaderInfo read_quokka_header(const std::string& header_path) {
     std::getline(infile, line);
     info.dim = std::stoi(line);
     
-    // Read currrent time
+    // Read current time
     std::getline(infile, line); 
     info.curr_time = std::stol(line);
 
@@ -283,7 +254,7 @@ HeaderInfo read_quokka_header(const std::string& header_path) {
         //Read Y limits
         std::getline(infile, line);
         ss.clear(); ss.str(line);
-        ss >> b.ylo >> b.yhi; 
+        ss >> b.ylo >> b.yhi;
 
         //Read Z limits
         std::getline(infile, line);
@@ -304,7 +275,7 @@ namespace fs = std::filesystem;
 
 std::vector<std::string> get_all_cell_files(const std::string& level_dir) {
     std::vector<std::string> cell_files;
-    for (const auto& entry : fs::directory_iterator(level_dir)) {
+    for (const auto& entry : std::filesystem::directory_iterator(level_dir)) {
         if (entry.is_regular_file()) {
             std::string name = entry.path().filename().string();
             if (name.rfind("Cell_D_", 0) == 0) {  // name starts with "Cell_D_"
@@ -314,4 +285,153 @@ std::vector<std::string> get_all_cell_files(const std::string& level_dir) {
     }
     std::sort(cell_files.begin(), cell_files.end());  // optional but useful
     return cell_files;
+    }
+
+// Function to print the value of a physical variable at specific coordinates
+void print_var_value_at_coordinates(const std::vector<std::vector<std::vector<std::vector<double>>>>& phys_var, int var_index, int x, int y, int z) {
+    if (var_index < 0 || var_index >= phys_var.size()) {
+        std::cerr << "Variable index out of bounds.\n";
+        return;
+    }
+    if (x < 0 || x >= phys_var[var_index].size() ||
+        y < 0 || y >= phys_var[var_index][0].size() ||
+        z < 0 || z >= phys_var[var_index][0][0].size()) {
+        std::cerr << "Coordinates out of bounds.\n";
+        return;
+    }
+    if (var_index==0){
+        std::cout << "Density (in g/cm^3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==1) {
+        std::cout << "Velocity_x (in cm/s) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==2) {
+        std::cout << "Velocity_y (in cm/s) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==3) {
+        std::cout << "Velocity_z (in cm/s) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==4) {
+        std::cout << "Internal_energy (in ergs) at (" << x << ", " << y << ", " << z << "): ";
+    } 
+    else {
+        std::cerr << "Unknown variable index.\n";
+        return;
+    }
+    std::cout << phys_var[var_index][x][y][z] << "\n";
 }
+
+double total_amount(const std::vector<std::vector<std::vector<double>>>& variable_density, 
+                const HeaderInfo& hinfo) {
+    double total = 0.0;
+    for (const auto& plane : variable_density) {
+        for (const auto& row : plane) {
+            for (const auto& value : row) {
+                total += value;
+            }
+        }
+    }
+    double dV= (hinfo.domain_hi[0] - hinfo.domain_lo[0]) * 
+         (hinfo.domain_hi[1] - hinfo.domain_lo[1]) * 
+        (hinfo.domain_hi[2] - hinfo.domain_lo[2]) / 
+         (hinfo.global_nx * hinfo.global_ny * hinfo.global_nz);
+    return total * dV;
+}
+
+std::vector<std::vector<std::vector<double>>> kinetic_energy_density(
+    const std::vector<std::vector<std::vector<double>>>& velocity_x,
+    const std::vector<std::vector<std::vector<double>>>& velocity_y,
+    const std::vector<std::vector<std::vector<double>>>& velocity_z,
+    const std::vector<std::vector<std::vector<double>>>& density
+){
+    //check if the dimensions of the input arrays match
+    if (velocity_x.size() != velocity_y.size() || 
+        velocity_x.size() != velocity_z.size() || 
+        velocity_x.size() != density.size()) {
+        std::cerr << "Dimension mismatch in kinetic energy density calculation.\n";
+        return {};
+    }
+
+    std::vector<std::vector<std::vector<double>>> kinetic_energy(density.size(),
+        std::vector<std::vector<double>>(density[0].size(),
+            std::vector<double>(density[0][0].size(), 0.0)));
+
+    for (size_t i = 0; i < density.size(); ++i) {
+        for (size_t j = 0; j < density[i].size(); ++j) {
+            for (size_t k = 0; k < density[i][j].size(); ++k) {
+                double vel_sq = velocity_x[i][j][k] * velocity_x[i][j][k] +
+                                velocity_y[i][j][k] * velocity_y[i][j][k] +
+                                velocity_z[i][j][k] * velocity_z[i][j][k];
+                kinetic_energy[i][j][k] = 0.5 * density[i][j][k] * vel_sq;
+            }
+        }
+    }
+
+    return kinetic_energy;
+}
+
+
+void validate(const std::vector<std::vector<std::vector<std::vector<double>>>>& phys_var, HeaderInfo& hinfo, std::vector<int> indices ={12,1,12}, bool c=true) {
+    if (c) {
+        // Check if the dimensions of the physical variables are consistent
+        for (const auto& var : phys_var) {
+            if (var.size() != phys_var[0].size() || var[0].size() != phys_var[0][0].size()) {
+                std::cerr << "Inconsistent dimensions found in physical variables.\n";
+                return;
+            }
+        }
+        // Check if the indices are within bounds
+        for (const auto& index : indices) {
+            if (index < 0 || index >= phys_var[0].size()) {
+                std::cerr << "Index out of bounds: " << index << "\n";
+                return;
+            }
+        }
+
+
+        std::cout << "All physical variables have consistent dimensions.\n";
+        for (int i=0; i<phys_var.size(); i++){
+            print_var_value_at_coordinates(phys_var, i, indices[0],indices[1], indices[2]);
+        }
+    }
+
+    std::cout<< "Total mass of the domain is "<<total_amount(phys_var[0], hinfo)<< std::endl;
+    std::cout<< "Total Internal Energy of the domain is "<<total_amount(phys_var[4], hinfo)<< std::endl;
+
+        //Print the maximum and minimum values and positions of various physical parameters
+    for (int var_idx = 0; var_idx < phys_var.size(); ++var_idx) {
+            double min_val = std::numeric_limits<double>::max();
+            double max_val = std::numeric_limits<double>::lowest();
+            std::tuple<int, int, int> min_pos, max_pos;
+
+        for (int i = 0; i < phys_var[var_idx].size(); ++i) {
+            for (int j = 0; j < phys_var[var_idx][i].size(); ++j) {
+                for (int k = 0; k < phys_var[var_idx][i][j].size(); ++k) {
+                double val = phys_var[var_idx][i][j][k];
+                if (val < min_val) {
+                    min_val = val;
+                    min_pos = std::make_tuple(i, j, k);
+                }
+                if (val > max_val) {
+                    max_val = val;
+                    max_pos = std::make_tuple(i, j, k);
+                }
+                }
+            }
+            }
+    std::string var_name = hinfo.variable_names[var_idx];
+        if (var_name == "gasDensity") {
+            var_name = "Density (g/cm^3)";
+        } else if (var_name == "x-GasMomentum") {
+            var_name = "Velocity_x (cm/s)";
+        } else if (var_name == "y-GasMomentum") {
+            var_name = "Velocity_y (cm/s)";
+        } else if (var_name == "z-GasMomentum") {
+            var_name = "Velocity_z (cm/s)";
+        } else if (var_name == "gasEnergy") {
+            var_name = "Internal Energy (ergs)";
+        }
+        std::cout << "Variable: " << var_name << " (index " << var_idx << "): "
+                << "min = " << min_val
+                << " at (" << std::get<0>(min_pos) << ", " << std::get<1>(min_pos) << ", " << std::get<2>(min_pos) << ")"
+                << ", max = " << max_val
+                << " at (" << std::get<0>(max_pos) << ", " << std::get<1>(max_pos) << ", " << std::get<2>(max_pos) << ")\n";
+    }
+}
+
