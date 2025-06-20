@@ -5,7 +5,10 @@
 #include <string>
 #include <filesystem>
 #include <algorithm>
-
+#include <boost/math/tools/roots.hpp>
+#include <cmath>
+#include <functional>
+#include <stdexcept>
 
 struct Array3DView {
     const double* data_ptr;  // Pointer to external data
@@ -309,8 +312,31 @@ void print_var_value_at_coordinates(const std::vector<std::vector<std::vector<st
         std::cout << "Velocity_z (in cm/s) at (" << x << ", " << y << ", " << z << "): ";
     } else if (var_index==4) {
         std::cout << "Internal_energy (in ergs) at (" << x << ", " << y << ", " << z << "): ";
-    } 
-    else {
+    } else if (var_index==5) {
+        std::cout << " Temperature (in K) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==6) {
+        std::cout << "Electron Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==7) {
+        std::cout << "Hydrogen Number Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==8) {
+        std::cout << "Helium Number Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==9) {
+        std::cout << "Neutral Hydrogen Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==10) {
+        std::cout << "Neutral Helium Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==11) {
+        std::cout << "H+ Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==12) {
+        std::cout << "He+ Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==13) {
+        std::cout << "He++ Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==14) {
+        std::cout << "Magnetic field_x (in Gauss) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==15) {
+        std::cout << "Magnetic field_y (in Gauss) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==16) {
+        std::cout << "Magnetic field_z (in Gauss) at (" << x << ", " << y << ", " << z << "): ";
+    } else {
         std::cerr << "Unknown variable index.\n";
         return;
     }
@@ -415,17 +441,44 @@ void validate(const std::vector<std::vector<std::vector<std::vector<double>>>>& 
                 }
             }
             }
-    std::string var_name = hinfo.variable_names[var_idx];
-        if (var_name == "gasDensity") {
+        std::string var_name;
+        int var = var_idx; // Assuming var_idx corresponds to the variable index
+        if (var == 0) {
             var_name = "Density (g/cm^3)";
-        } else if (var_name == "x-GasMomentum") {
+        } else if (var == 1) {
             var_name = "Velocity_x (cm/s)";
-        } else if (var_name == "y-GasMomentum") {
+        } else if (var == 2) {
             var_name = "Velocity_y (cm/s)";
-        } else if (var_name == "z-GasMomentum") {
+        } else if (var == 3) {
             var_name = "Velocity_z (cm/s)";
-        } else if (var_name == "gasEnergy") {
+        } else if (var == 4) {
             var_name = "Internal Energy (ergs)";
+        } else if (var == 5) {
+            var_name = "Temperature (K)";
+        } else if (var == 6) {
+            var_name = "Electron Density (cm^-3)";
+        } else if (var ==7){
+            var_name = "Hydrogen Number Density (cm^-3)";
+        } else if (var == 8) {
+            var_name = "Helium Number Density (cm^-3)";
+        } else if (var == 9) {
+            var_name = "Neutral Hydrogen Density (cm^-3)";
+        } else if (var == 10) {
+            var_name = "Neutral Helium Density (cm^-3)";
+        } else if (var == 11) {
+            var_name = "H+ Density (cm^-3)";
+        } else if (var == 12) {
+            var_name = "He+ Density (cm^-3)";
+        } else if (var == 13) {
+            var_name = "He++ Density (cm^-3)";
+        } else if (var == 14) {
+            var_name = "Magnetic Field_x (G)";
+        } else if (var == 15) {
+            var_name = "Magnetic Field_y (G)";
+        } else if (var == 16) {
+            var_name = "Magnetic Field_z (G)";
+        } else {
+            var_name = "Unknown Variable";
         }
         std::cout << "Variable: " << var_name << " (index " << var_idx << "): "
                 << "min = " << min_val
@@ -435,3 +488,115 @@ void validate(const std::vector<std::vector<std::vector<std::vector<double>>>>& 
     }
 }
 
+
+//Calculating the temperature:
+#include <boost/math/constants/constants.hpp>
+#include <boost/math/tools/roots.hpp>
+//#include <boost/math/interpolators/bilinear.hpp>
+double bilinear_interpolate(double x, double y,
+                            const std::vector<double>& x_vals,
+                            const std::vector<double>& y_vals,
+                            const std::vector<std::vector<double>>& f_vals) {
+    size_t i = std::upper_bound(x_vals.begin(), x_vals.end(), x) - x_vals.begin() - 1;
+    size_t j = std::upper_bound(y_vals.begin(), y_vals.end(), y) - y_vals.begin() - 1;
+
+    double x1 = x_vals[i], x2 = x_vals[i+1];
+    double y1 = y_vals[j], y2 = y_vals[j+1];
+
+    double Q11 = f_vals[i][j];
+    double Q21 = f_vals[i+1][j];
+    double Q12 = f_vals[i][j+1];
+    double Q22 = f_vals[i+1][j+1];
+
+    double denom = (x2 - x1) * (y2 - y1);
+    return (Q11 * (x2 - x) * (y2 - y) +
+            Q21 * (x - x1) * (y2 - y) +
+            Q12 * (x2 - x) * (y - y1) +
+            Q22 * (x - x1) * (y - y1)) / denom;
+}
+
+std::function<double(double, double)>
+make_mu_interpolator(const std::vector<double>& Log_n_H_vals,
+                    const std::vector<double>& T_vals,
+                    const std::vector<std::vector<double>>& mu_table) {
+    return [=](double n_H, double T) {
+        return bilinear_interpolate(std::log10(n_H), T, Log_n_H_vals, T_vals, mu_table);
+    };
+}
+
+std::vector<double> read_vector_csv(const std::string& filename) {
+    std::vector<double> vec;
+    std::ifstream file(filename);
+    std::string line;
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        double val;
+        while (ss >> val) {
+            vec.push_back(val);
+            if (ss.peek() == ',') ss.ignore();
+        }
+    }
+    return vec;
+}
+
+std::vector<std::vector<double>> read_matrix_csv(const std::string& filename) {
+    std::vector<std::vector<double>> matrix;
+    std::ifstream file(filename);
+    std::string line;
+    
+    while (std::getline(file, line)) {
+        std::vector<double> row;
+        std::stringstream ss(line);
+        std::string val;
+        
+        while (std::getline(ss, val, ',')) {
+            row.push_back(std::stod(val));
+        }
+        matrix.push_back(row);
+    }
+
+    return matrix;
+}
+
+
+
+// Constants
+constexpr double k_B = 1.380649e-16; // Boltzmann constant in erg/K
+constexpr double m_p = 1.6726219e-24; // Proton mass in g
+constexpr double X = 0.76; // Hydrogen mass fraction
+constexpr double z_val = 0.0; // Redshift value, can be adjusted based on the simulation
+
+// Solving the equation (gamma-1)e_int= n * k_B * T / (mu * m_p) for T
+//i.e., (gamma-1) * e_int*mu(n_H,T)*m_p /(rho*k_B) -T=0
+
+
+
+double residual_function(double T, double e_int, double rho, std::vector<double> Temperatures, 
+                        std::vector<double> Log_n_H,
+                        const std::vector<std::vector<double>>& Mu_grid_slice) {
+    //interpolate mu(n_H,T) using the mu_grid_slice
+    double nH = rho*X/m_p;
+    double log_nH = std::log10(nH);
+    if (log_nH < Log_n_H.front() || log_nH > Log_n_H.back()) {
+        std::cerr << "log_nH out of bounds for interpolation.\n";
+        return 0.0; // or handle error appropriately
+    }
+    double mu = bilinear_interpolate(log_nH, T, Log_n_H, Temperatures, Mu_grid_slice);
+    return (e_int * m_p * mu) / (rho * k_B) - T;
+}
+
+
+// struct TemperatureResidual {
+//     double e_int, rho;
+//     const std::vector<double>& lognH_vals;
+//     const std::vector<double>& T_vals;
+//     const std::vector<std::vector<double>>& mu_table;
+
+//     double operator()(double T) const {
+//         double n_H = rho * X / m_p;
+//         double lognH = std::log10(n_H);
+//         double mu = bilinear_interpolate(lognH, T, lognH_vals, T_vals, mu_table);
+//         double lhs = (e_int * m_p * mu) / (rho * k_B);
+//         return lhs - T;
+//     }
+// };
