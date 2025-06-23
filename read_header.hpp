@@ -6,9 +6,26 @@
 #include <filesystem>
 #include <algorithm>
 #include <boost/math/tools/roots.hpp>
+#include <boost/math/constants/constants.hpp>
 #include <cmath>
 #include <functional>
 #include <stdexcept>
+
+    // Define constants
+    constexpr double cloudy_H_mass_fraction = 1. / (1. + 0.1 * 3.971);
+    constexpr double X = cloudy_H_mass_fraction;
+    constexpr double Z = 0.02; // metal fraction by mass
+    constexpr double Y = 1. - X - Z;
+    constexpr double mean_metals_A = 16.; // mean atomic weight of metals
+    constexpr double k_B = 1.380649e-23;  // J/K
+    constexpr double m_p = 1.6726219e-27; // kg
+    constexpr double electron_mass_cgs = 9.10938356e-28; // g
+    constexpr double m_e = electron_mass_cgs; // Electron mass in g
+    constexpr double gamma = 5.0 / 3.0;
+
+    double T_min = 10.0; // Minimum temperature in K
+    double T_max = 1e9; // Maximum temperature in K
+    double He_to_H_ratio = 0.1; // Assuming a constant ratio for simplicity
 
 struct Array3DView {
     const double* data_ptr;  // Pointer to external data
@@ -490,8 +507,7 @@ void validate(const std::vector<std::vector<std::vector<std::vector<double>>>>& 
 
 
 //Calculating the temperature:
-#include <boost/math/constants/constants.hpp>
-#include <boost/math/tools/roots.hpp>
+
 //#include <boost/math/interpolators/bilinear.hpp>
 double bilinear_interpolate(double x, double y,
                             const std::vector<double>& x_vals,
@@ -558,45 +574,8 @@ std::vector<std::vector<double>> read_matrix_csv(const std::string& filename) {
     return matrix;
 }
 
-
-
 // Constants
 constexpr double k_B = 1.380649e-16; // Boltzmann constant in erg/K
 constexpr double m_p = 1.6726219e-24; // Proton mass in g
 constexpr double X = 0.76; // Hydrogen mass fraction
 constexpr double z_val = 0.0; // Redshift value, can be adjusted based on the simulation
-
-// Solving the equation (gamma-1)e_int= n * k_B * T / (mu * m_p) for T
-//i.e., (gamma-1) * e_int*mu(n_H,T)*m_p /(rho*k_B) -T=0
-
-
-
-double residual_function(double T, double e_int, double rho, std::vector<double> Temperatures, 
-                        std::vector<double> Log_n_H,
-                        const std::vector<std::vector<double>>& Mu_grid_slice) {
-    //interpolate mu(n_H,T) using the mu_grid_slice
-    double nH = rho*X/m_p;
-    double log_nH = std::log10(nH);
-    if (log_nH < Log_n_H.front() || log_nH > Log_n_H.back()) {
-        std::cerr << "log_nH out of bounds for interpolation.\n";
-        return 0.0; // or handle error appropriately
-    }
-    double mu = bilinear_interpolate(log_nH, T, Log_n_H, Temperatures, Mu_grid_slice);
-    return (e_int * m_p * mu) / (rho * k_B) - T;
-}
-
-
-// struct TemperatureResidual {
-//     double e_int, rho;
-//     const std::vector<double>& lognH_vals;
-//     const std::vector<double>& T_vals;
-//     const std::vector<std::vector<double>>& mu_table;
-
-//     double operator()(double T) const {
-//         double n_H = rho * X / m_p;
-//         double lognH = std::log10(n_H);
-//         double mu = bilinear_interpolate(lognH, T, lognH_vals, T_vals, mu_table);
-//         double lhs = (e_int * m_p * mu) / (rho * k_B);
-//         return lhs - T;
-//     }
-// };
