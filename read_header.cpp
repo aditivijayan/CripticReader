@@ -3,6 +3,8 @@
 #include <sstream>
 #include <vector>
 #include <string>
+#include <stdio.h>
+#include <filesystem>
 #include "read_header.hpp"
 #include <boost/math/tools/roots.hpp>
 
@@ -53,7 +55,6 @@ int main() {
     all_blocks_variables[1] = all_blocks_variables_velocity[0]; // Replace momentum_x with velocity_x
     all_blocks_variables[2] = all_blocks_variables_velocity[1]; // Replace momentum_y with velocity_y
     all_blocks_variables[3] = all_blocks_variables_velocity[2]; // Replace momentum_z with velocity_z
-    std::cout << "Momentum blocks converted to velocity in cm/s.\n";
 
 
     //Initialize the data array for density and velocity variables
@@ -96,7 +97,6 @@ int main() {
         std::cerr << "Failed to read Temperature.csv.\n";
         return 1;
     }
-    std::cout << "Temperatures loaded successfully.\n";
     std::vector<double> Log_nH=read_vector_csv(home + "/log10_nH.csv");
     if (Log_nH.empty()) {
         std::cerr << "Failed to read log10_nH.csv.\n";
@@ -116,7 +116,7 @@ int main() {
         double n_H = rho * X / m_p;
         double mu_val = mu(n_H, T);
 
-        return ((gamma - 1.0) * e_int * mu_val * m_p) / (rho * k_B * T) - T;
+        return ((2.0/3.0) * e_int * mu_val * m_p) / (rho * k_B * T) - T;
     };
 
     std::vector<std::vector<std::vector<double>>> Temperature(std::vector<std::vector<std::vector<double>>>(hinfo.global_nx, std::vector<std::vector<double>>(hinfo.global_ny, std::vector<double>(hinfo.global_nz, 0.0))));
@@ -131,60 +131,70 @@ int main() {
     std::vector<std::vector<std::vector<double>>> relative_Neutral_helium_density(hinfo.global_nx, std::vector<std::vector<double>>(hinfo.global_ny, std::vector<double>(hinfo.global_nz, 0.0)));
     // Assuming a constant ratio of He to H for simplicity
 
-    std::cout << "Calculating temperature and electron density and densities of Hydrogen and Helium\n";
     for (int i = 0; i < hinfo.global_nx; ++i) {
         for (int j = 0; j < hinfo.global_ny; ++j) {
             for (int k = 0; k < hinfo.global_nz; ++k) {
                 double rho = phys_var[0][i][j][k]; // Density
                 double e_int = phys_var[4][i][j][k]; // Internal energy density
-                    auto temp_pair = boost::math::tools::bisect(
+                auto temp_pair = boost::math::tools::bisect(
                         [&](double T) { return residual(rho, T, e_int); },
                         T_min, T_max,
                         boost::math::tools::eps_tolerance<double>(30)
                     );
-                    Temperature[i][j][k] = (temp_pair.first + temp_pair.second) / 2.0;
-                    double nH = rho * X / m_p; // Number density of hydrogen
-                    double mu_val = mu(nH, Temperature[i][j][k]);
+                Temperature[i][j][k] = (temp_pair.first + temp_pair.second) / 2.0;
+                double nH = rho * X / m_p; // Number density of hydrogen
+                double mu_val = mu(nH, Temperature[i][j][k]);
                                     // compute electron density
 	                // N.B. it is absolutely critical to include the metal contribution here!
 	                // the approximation for the metals contribution to e- fails at high densities (~1e3 or higher)
-                    double n_e = (rho / (m_p + m_e)) * (1.0 - mu_val * (X + Y / 4. + Z / mean_metals_A)) / (mu_val - (electron_mass_cgs / (m_p + m_e)));
-                    if (n_e > 1.0e-4 * nH) {
+                double n_e = (rho / (m_p + m_e)) * (1.0 - mu_val * (X + Y / 4. + Z / mean_metals_A)) / (mu_val - (electron_mass_cgs / (m_p + m_e)));
+                if (n_e < 1.0e-4 * nH) {
                         relative_electron_density[i][j][k] = 1.0e-4; // Set a minimum electron density
-                    }else{
+                        n_e = 1.0e-4 * nH; // Set a minimum electron density
+                }else {
                         relative_electron_density[i][j][k] = n_e/nH; // Set the calculated electron density
-                    }
-                    
-                
-                hydrogen_number_density[i][j][k] = rho * X / m_p; // Density * X / m_p
+                }
+
+                hydrogen_number_density[i][j][k] = nH; // Density * X / m_p
                 double n_He = hydrogen_number_density[i][j][k] * He_to_H_ratio; // Helium number density
                 //helium_number_density[i][j][k] = n_He; // n_He/n_H=0.1
                 if(n_e < (nH * (1 + He_to_H_ratio))) {
                     // Assuming the ionization fraction, chi is same for both hydrogen and helium, we have n_e=n_H+ + n_He+  implying n_H+=n_H*n_e/(n_H+n_He)
                     relative_H_plus_density[i][j][k] =  n_e / (nH + n_He);
                     relative_He_plus_density[i][j][k] = He_to_H_ratio * n_e / (nH + n_He);
-                    relative_He_double_plus_density[i][j][k] = 0.0; // Assuming no He++ in this case
+                    relative_He_double_plus_density[i][j][k] = 0.0; // Approximation: no He++ in this case
                     relative_Neutral_hydrogen_density[i][j][k] = 1- relative_H_plus_density[i][j][k];//(nH - H_plus_density[i][j][k])/nH;
                     relative_Neutral_helium_density[i][j][k] = He_to_H_ratio - relative_He_plus_density[i][j][k];
-                } else {   //n_e= n_H + n_He + n_He++
+                } else { //All hydrogen and helium atoms are ionized
                     relative_He_double_plus_density[i][j][k] = (n_e - nH - n_He)/nH; // Assuming all excess electrons go to He++
                     relative_Neutral_hydrogen_density[i][j][k] = 0.0; // Assuming all hydrogen is ionized
                     relative_Neutral_helium_density[i][j][k] = 0.0; // Assuming all helium is ionized
                     relative_H_plus_density[i][j][k] = 1.0;
-                    relative_He_plus_density[i][j][k] = (n_He - (n_e - nH - n_He))/nH; // Remaining He+ after accounting for He++
+                    relative_He_plus_density[i][j][k] = (n_He - (n_e - nH - n_He))/nH; // Remaining He+ after accounting for He++, assuming that all electrons that are result of ionization of atoms.
+                }
+                if (relative_He_plus_density[i][j][k] < 0.0) {
+                    relative_He_plus_density[i][j][k] = 0.0; // Ensure no negative densities
+                }
+                if (relative_He_double_plus_density[i][j][k] < 0.0) {
+                    relative_He_double_plus_density[i][j][k] = 0.0; // Ensure no negative densities
+                }
+                if (relative_Neutral_hydrogen_density[i][j][k] < 0.0) {
+                    relative_Neutral_hydrogen_density[i][j][k] = 0.0; // Ensure no negative densities
+                }
+                if (relative_Neutral_helium_density[i][j][k] < 0.0) {
+                    relative_Neutral_helium_density[i][j][k] = 0.0; // Ensure no negative densities
+                }
+                if (relative_H_plus_density[i][j][k] < 0.0) {
+                    relative_H_plus_density[i][j][k] = 0.0; // Ensure no negative densities
                 }
             }
-        }
+        }    
     }
     phys_var.push_back(Temperature); // Add the Temperature array to phys_var for further processing if needed
     phys_var.push_back(relative_electron_density); // Add the electron density array to phys_var for further processing if needed
     phys_var.push_back(hydrogen_number_density); // Add the hydrogen number density array to phys_var for further processing if needed
     phys_var.push_back(relative_helium_number_density); // Add the helium number density array to phys_var for further processing if needed
-    std::cout << "Temperature calculated successfully and added to phys_var at index " << phys_var.size() - 2 << "\n";
-    std::cout << "Electron density calculated successfully and added to phys_var at index " << phys_var.size() - 1 << "\n";
-    std::cout << "Hydrogen number density calculated successfully and added to phys_var at index " << phys_var.size() << "\n";
-    std::cout << "Helium number density calculated successfully and added to phys_var at index " << phys_var.size() + 1 << "\n";
-    std::cout << "Ion densities calculated successfully.\n";
+
     // Add the ion densities to phys_var for further processing if needed
     phys_var.push_back(relative_Neutral_hydrogen_density);
     phys_var.push_back(relative_Neutral_helium_density);
@@ -200,7 +210,7 @@ int main() {
     std::cout << "3: Velocity_z (cm/s)\n";
     std::cout << "4: Internal Energy Density (ergs/cm^3)\n";
     std::cout << "5: Temperature (K)\n";
-    std::cout << "6: Relative Electron Density (cm^-3)\n";
+    std::cout << "6: Relative Electron Density\n";
     std::cout << "7: Hydrogen Number Density (cm^-3)\n";
     std::cout << "8: Relative Helium Number Density\n";
     std::cout << "9: Relative Neutral Hydrogen Density\n";
@@ -220,13 +230,12 @@ int main() {
     phys_var.push_back(magnetic_field_z); // Add magnetic field z-component
     std::cout << "Magnetic field added to phys_var at indices " << phys_var.size() - 3 << ", " << phys_var.size() - 2 << ", " << phys_var.size() - 1 << "\n";
     // Validate the data
-    std::vector<int> indices = {0, 55, 62}; // Example indices to validate
+    std::vector<int> indices = {29, 6, 20}; // Example indices to validate
     //last argument is true, which means we want to validate the data along with printing the values at the specified indices. Turn it to false if you only want to validate the data without printing the values.
-    std::cout << "Validating data...\n\n";
-    validate(phys_var, hinfo, indices, true);
+    std::cout << "\n\nValidating data...";
+    validate(phys_var, hinfo, indices, false);
     std::cout<< "Total kinetic energy in the domain is " << total_amount(kinetic_energy, hinfo) << " ergs.\n";
     std::cout << "Data validation completed.\n";
-
 
     return 0;
 }

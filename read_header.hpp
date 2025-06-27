@@ -17,11 +17,10 @@
     constexpr double Z = 0.02; // metal fraction by mass
     constexpr double Y = 1. - X - Z;
     constexpr double mean_metals_A = 16.; // mean atomic weight of metals
-    constexpr double k_B = 1.380649e-23;  // J/K
-    constexpr double m_p = 1.6726219e-27; // kg
+    constexpr double k_B = 1.380649e-16;  // erg/K
+    constexpr double m_p = 1.6726219e-24; // g
     constexpr double electron_mass_cgs = 9.10938356e-28; // g
     constexpr double m_e = electron_mass_cgs; // Electron mass in g
-    constexpr double gamma = 5.0 / 3.0;
 
     double T_min = 10.0; // Minimum temperature in K
     double T_max = 1e9; // Maximum temperature in K
@@ -434,10 +433,10 @@ void validate(const std::vector<std::vector<std::vector<std::vector<double>>>>& 
         }
     }
 
-    std::cout<< "Total mass of the domain is "<<total_amount(phys_var[0], hinfo)<< std::endl;
-    std::cout<< "Total Internal Energy of the domain is "<<total_amount(phys_var[4], hinfo)<< std::endl;
-
-        //Print the maximum and minimum values and positions of various physical parameters
+    std::cout<< "\nTotal mass of the domain is "<<total_amount(phys_var[0], hinfo)<< std::endl;
+    std::cout<< "Total Internal Energy of the domain is "<<total_amount(phys_var[4], hinfo)<< std::endl<< std::endl;
+    std::vector<int> is_negative_allowed_indices = {1, 2, 3, 14, 15, 16}; // Indices of variables where negative values are allowed
+    // Print the maximum and minimum values and positions of various physical parameters
     for (int var_idx = 0; var_idx < phys_var.size(); ++var_idx) {
             double min_val = std::numeric_limits<double>::max();
             double max_val = std::numeric_limits<double>::lowest();
@@ -447,6 +446,11 @@ void validate(const std::vector<std::vector<std::vector<std::vector<double>>>>& 
             for (int j = 0; j < phys_var[var_idx][i].size(); ++j) {
                 for (int k = 0; k < phys_var[var_idx][i][j].size(); ++k) {
                 double val = phys_var[var_idx][i][j][k];
+                // if (var_idx != 1 && var_idx != 2 && var_idx != 3 && var_idx <=13) { // Skip velocity components and Magnetic field components for min/max
+                //     if (val < 0) {
+                //         std::cerr << "Negative value found in variable " << var_idx << " at (" << i << ", " << j << ", " << k << "): " << val << "\n";
+                //     }
+                // }
                 if (val < min_val) {
                     min_val = val;
                     min_pos = std::make_tuple(i, j, k);
@@ -457,7 +461,10 @@ void validate(const std::vector<std::vector<std::vector<std::vector<double>>>>& 
                 }
                 }
             }
-            }
+        }
+        if (min_val < 0 && std::find(is_negative_allowed_indices.begin(), is_negative_allowed_indices.end(), var_idx) == is_negative_allowed_indices.end()) {
+            std::cerr << "Negative value found in variable " << var_idx << ": " << min_val << " at (" << std::get<0>(min_pos) << ", " << std::get<1>(min_pos) << ", " << std::get<2>(min_pos) << ")\n";
+        }
         std::string var_name;
         int var = var_idx; // Assuming var_idx corresponds to the variable index
         if (var == 0) {
@@ -477,17 +484,17 @@ void validate(const std::vector<std::vector<std::vector<std::vector<double>>>>& 
         } else if (var ==7){
             var_name = "Hydrogen Number Density (cm^-3)";
         } else if (var == 8) {
-            var_name = "Helium Number Density (cm^-3)";
+            var_name = "Relative Helium Number Density";
         } else if (var == 9) {
-            var_name = "Neutral Hydrogen Density (cm^-3)";
+            var_name = "Relative Neutral Hydrogen Density";
         } else if (var == 10) {
-            var_name = "Neutral Helium Density (cm^-3)";
+            var_name = "Relative Neutral Helium Density";
         } else if (var == 11) {
-            var_name = "H+ Density (cm^-3)";
+            var_name = "Relative H+ Density";
         } else if (var == 12) {
-            var_name = "He+ Density (cm^-3)";
+            var_name = "Relative He+ Density";
         } else if (var == 13) {
-            var_name = "He++ Density (cm^-3)";
+            var_name = "Relative He++ Density";
         } else if (var == 14) {
             var_name = "Magnetic Field_x (G)";
         } else if (var == 15) {
@@ -502,6 +509,7 @@ void validate(const std::vector<std::vector<std::vector<std::vector<double>>>>& 
                 << " at (" << std::get<0>(min_pos) << ", " << std::get<1>(min_pos) << ", " << std::get<2>(min_pos) << ")"
                 << ", max = " << max_val
                 << " at (" << std::get<0>(max_pos) << ", " << std::get<1>(max_pos) << ", " << std::get<2>(max_pos) << ")\n";
+
     }
 }
 
@@ -575,7 +583,7 @@ std::vector<std::vector<double>> read_matrix_csv(const std::string& filename) {
 }
 
 // Constants
-constexpr double k_B = 1.380649e-16; // Boltzmann constant in erg/K
-constexpr double m_p = 1.6726219e-24; // Proton mass in g
-constexpr double X = 0.76; // Hydrogen mass fraction
-constexpr double z_val = 0.0; // Redshift value, can be adjusted based on the simulation
+// constexpr double k_B = 1.380649e-16; // Boltzmann constant in erg/K
+// constexpr double m_p = 1.6726219e-24; // Proton mass in g
+// constexpr double X = 0.76; // Hydrogen mass fraction
+// constexpr double z_val = 0.0; // Redshift value, can be adjusted based on the simulation
