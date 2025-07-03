@@ -22,7 +22,7 @@
     constexpr double electron_mass_cgs = 9.10938356e-28; // g
     constexpr double m_e = electron_mass_cgs; // Electron mass in g
 
-    double T_min = 10.0; // Minimum temperature in K
+    double T_min = 1.0; // Minimum temperature in K
     double T_max = 1e9; // Maximum temperature in K
     double He_to_H_ratio = 0.1; // Assuming a constant ratio for simplicity
 
@@ -582,8 +582,86 @@ std::vector<std::vector<double>> read_matrix_csv(const std::string& filename) {
     return matrix;
 }
 
-// Constants
-// constexpr double k_B = 1.380649e-16; // Boltzmann constant in erg/K
-// constexpr double m_p = 1.6726219e-24; // Proton mass in g
-// constexpr double X = 0.76; // Hydrogen mass fraction
-// constexpr double z_val = 0.0; // Redshift value, can be adjusted based on the simulation
+void write_3D_slice(const std::vector<std::vector<std::vector<double>>>& array3d,
+                         const std::string& filename) {
+    std::ofstream outfile(filename, std::ios::trunc);  // `trunc` ensures the file is cleared
+
+    if (!outfile.is_open()) {
+        std::cerr << "Error: Could not open file " << filename << " for writing.\n";
+        return;
+    }
+
+    int nx = array3d.size();
+    int ny = array3d[0].size();
+    int nz = array3d[0][0].size();
+
+    for (int i = 0; i < nx; ++i) {
+        for (int j = 0; j < ny; ++j) {
+            for (int k = 0; k < nz; ++k) {
+                outfile << array3d[i][j][k];
+                if (k < nz - 1) outfile << ",";  // Avoid trailing comma
+            }
+            outfile << "\n";
+        }
+        // outfile << "\n"; // Uncomment to separate x-slices for readability
+    }
+
+    outfile.close();
+    std::cout << "File " << filename << " written successfully.\n";
+}
+
+void write_phys_var_to_multi_csv(const std::vector<std::vector<std::vector<std::vector<double>>>>& phys_var,
+                            const std::string& plt_filename) {
+
+    std::string var_name;
+    for (int var = 0; var < phys_var.size(); ++var) {
+        if (var==0)  var_name = "Density";
+        else if (var==1) var_name = "Velocity_x";
+        else if (var==2) var_name = "Velocity_y";
+        else if (var==3) var_name = "Velocity_z";
+        else if (var==4) var_name = "Internal_energy";
+        else if (var==5) var_name = "Temperature";
+        else if (var==6) var_name = "Electron_density";
+        else if (var==7) var_name = "Hydrogen_number_density";
+        else if (var==8) var_name = "relative_Helium_number_density";
+        else if (var==9) var_name = "relative_Neutral_Hydrogen_density";
+        else if (var==10) var_name = "relative_Neutral_Helium_density";
+        else if (var==11) var_name = "relative_H+_density";
+        else if (var==12) var_name = "relative_He+_density";
+        else if (var==13) var_name = "relative_He++_density";
+        else if (var==14) var_name = "Magnetic_field_x";
+        else if (var==15) var_name = "Magnetic_field_y";
+        else if (var==16) var_name = "Magnetic_field_z";
+
+        // Write different csv files for each variable
+        write_3D_slice(phys_var[var], plt_filename + "_" + var_name + ".csv");
+    }
+    std::cout << "All physical variables written to separate CSV files." << std::endl;
+}
+
+void write_phys_var_to_single_csv(const std::vector<std::vector<std::vector<std::vector<double>>>>& phys_var,
+                            const std::string& plt_filename) {
+    std::ofstream outfile(plt_filename + ".csv", std::ios::trunc);  // `trunc` ensures the file is cleared
+    if (!outfile.is_open()) {
+        std::cerr << "Error: Could not open file " << plt_filename << " for writing.\n";
+        return;
+    }
+    int nx = phys_var[0].size();
+    int ny = phys_var[0][0].size();
+    int nz = phys_var[0][0][0].size();
+    for (int var = 0; var < phys_var.size(); ++var) {
+        for (int i = 0; i < nx; ++i) {
+            for (int j = 0; j < ny; ++j) {
+                for (int k = 0; k < nz; ++k) {
+                    outfile << phys_var[var][i][j][k];
+                    if (k < nz - 1) outfile << ",";  // Avoid trailing comma
+                }
+                outfile << "\n";
+            }
+            outfile << "\n"; // Separate x-slices for readability
+        }
+        outfile << "End of variable " << var << "\n"; // Separate variables for readability
+    }
+    outfile.close();
+    std::cout << "File " << plt_filename << " written successfully.\n";
+}

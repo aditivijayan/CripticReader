@@ -10,24 +10,24 @@
 
 namespace fs = std::filesystem;
 
+
 int main() {
     std::string home = fs::current_path();
-    std::string data_path =  home + "/data/LowRes/plt01000"; 
+    std::string file_path = "/data/plt80000/";
+    std::string data_path =  home + file_path; 
     std::string header = data_path + "/Header";
-
-    std::cout << "Loading data from path: " << data_path<< "\n";
     HeaderInfo hinfo = read_quokka_header(header);
-    std::cout << "Header information loaded successfully.\n";
+
     std::string level_path = data_path  + "/Level_0";
     std::vector<std::string> cell_files = get_all_cell_files(level_path);
-    std::cout<< "Cell files loaded successfully.\n\n";
+
 
     // i-th entry of all_block_variables will hold all blocks for the i-th variable, j-th entry of the i-th all_block would hold all blocks for the j-th cell file
     // i=0: density, i=1: momentum_x, i=2: momentum_y, i=3: momentum_z, i=4: internal energy
     std::vector<std::vector<BlockData>> all_blocks_variables(5, std::vector<BlockData>());
     if (cell_files.empty()) {
         std::cerr << "No cell files found in the specified directory." << std::endl<< std::endl;
-        return 1;
+        return {};
     }
 
     for(int i=0; i<5; ++i) { // Read 5 variables: density, momentum_x, momentum_y, momentum_z, internal energy
@@ -82,30 +82,23 @@ int main() {
     }
     }
 
-    // Calculate kinetic energy density in ergs/cm^3
-    std::vector<std::vector<std::vector<double>>> kinetic_energy = kinetic_energy_density(phys_var[1], phys_var[2], phys_var[3], phys_var[0]); //input is velocity_x, velocity_y, velocity_z, density
-    if (kinetic_energy.empty()) {
-        std::cerr << "Failed to calculate kinetic energy density.\n";
-        return 1;
-    }
-
 
 
     //Calculating the Temperature from the eqn ((gamma-1)*energy density= rho*k_B*T/ mu(n_H,T)*m_p)
     std::vector<double> Temperatures=read_vector_csv(home + "/Temperature.csv");
     if (Temperatures.empty()) {
         std::cerr << "Failed to read Temperature.csv.\n";
-        return 1;
+        return {};
     }
     std::vector<double> Log_nH=read_vector_csv(home + "/log10_nH.csv");
     if (Log_nH.empty()) {
         std::cerr << "Failed to read log10_nH.csv.\n";
-        return 1;
+        return {};
     }
     std::vector<std::vector<double>> Mu_grid_slice= read_matrix_csv(home + "/mu_slice_z0.csv");
     if (Mu_grid_slice.empty()) {
         std::cerr << "Failed to read mu_slice_z0.csv.\n";
-        return 1;
+        return {};
     }
     std::cout << "mu_slice_z0 loaded successfully.\n";
 
@@ -202,6 +195,25 @@ int main() {
     phys_var.push_back(relative_He_plus_density);
     phys_var.push_back(relative_He_double_plus_density);
 
+    // Adding the magnetic field variable.
+    // Zeroth order approximation of the magnetic field: B= B_0 \hat{z}
+    double B_0 = 1e-6; // Example value for the magnetic field strength in Gauss
+    std::vector<std::vector<std::vector<double>>> magnetic_field_x(hinfo.global_nx, std::vector<std::vector<double>>(hinfo.global_ny, std::vector<double>(hinfo.global_nz, 0.0)));
+    std::vector<std::vector<std::vector<double>>> magnetic_field_y(hinfo.global_nx, std::vector<std::vector<double>>(hinfo.global_ny, std::vector<double>(hinfo.global_nz, 0.0)));
+    std::vector<std::vector<std::vector<double>>> magnetic_field_z(hinfo.global_nx, std::vector<std::vector<double>>(hinfo.global_ny, std::vector<double>(hinfo.global_nz, B_0)));
+    phys_var.push_back(magnetic_field_x); // Add magnetic field x-component
+    phys_var.push_back(magnetic_field_y); // Add magnetic field y-component
+    phys_var.push_back(magnetic_field_z); // Add magnetic field z-component
+
+
+
+    // Calculate kinetic energy density in ergs/cm^3
+    std::vector<std::vector<std::vector<double>>> kinetic_energy = kinetic_energy_density(phys_var[1], phys_var[2], phys_var[3], phys_var[0]); //input is velocity_x, velocity_y, velocity_z, density
+    if (kinetic_energy.empty()) {
+        std::cerr << "Failed to calculate kinetic energy density.\n";
+        return 1;
+    }
+
     //print the indices of the variables in phys_var
     std::cout << "Physical variables indices in phys_var:\n";
     std::cout << "0: Density (g/cm^3)\n";
@@ -218,25 +230,51 @@ int main() {
     std::cout << "11: Relative H+ Density\n";
     std::cout << "12: Relative He+ Density\n";
     std::cout << "13: Relative He++ Density\n";
+    std::cout << "14: Magnetic Field X-component (G)\n";
+    std::cout << "15: Magnetic Field Y-component (G)\n";
+    std::cout << "16: Magnetic Field Z-component (G)\n";
 
-    // Adding the magnetic field variable.
-    // Zeroth order approximation of the magnetic field: B= B_0 \hat{z}
-    double B_0 = 1e-6; // Example value for the magnetic field strength in Gauss
-    std::vector<std::vector<std::vector<double>>> magnetic_field_x(hinfo.global_nx, std::vector<std::vector<double>>(hinfo.global_ny, std::vector<double>(hinfo.global_nz, 0.0)));
-    std::vector<std::vector<std::vector<double>>> magnetic_field_y(hinfo.global_nx, std::vector<std::vector<double>>(hinfo.global_ny, std::vector<double>(hinfo.global_nz, 0.0)));
-    std::vector<std::vector<std::vector<double>>> magnetic_field_z(hinfo.global_nx, std::vector<std::vector<double>>(hinfo.global_ny, std::vector<double>(hinfo.global_nz, B_0)));
-    phys_var.push_back(magnetic_field_x); // Add magnetic field x-component
-    phys_var.push_back(magnetic_field_y); // Add magnetic field y-component
-    phys_var.push_back(magnetic_field_z); // Add magnetic field z-component
-    std::cout << "Magnetic field added to phys_var at indices " << phys_var.size() - 3 << ", " << phys_var.size() - 2 << ", " << phys_var.size() - 1 << "\n";
-    // Validate the data
     std::vector<int> indices = {29, 6, 20}; // Example indices to validate
     //last argument is true, which means we want to validate the data along with printing the values at the specified indices. Turn it to false if you only want to validate the data without printing the values.
     std::cout << "\n\nValidating data...";
     validate(phys_var, hinfo, indices, false);
     std::cout<< "Total kinetic energy in the domain is " << total_amount(kinetic_energy, hinfo) << " ergs.\n";
     std::cout << "Data validation completed.\n";
+    
+    // Write the phys_var data to a single CSV file
+    std::string plt_filename= "plt80000";
 
+    // Check if the plt_filename is part of the file_path
+    if (file_path.find(plt_filename) == std::string::npos) {
+        std::cerr << "Error: plt_filename '" << plt_filename << "' not found in file_path '" << file_path << "'.\n";
+        return 1;
+    }
+    // check if the files are already present
+    if (!fs::exists(plt_filename + ".csv")) {
+        write_phys_var_to_single_csv(phys_var, plt_filename);
+        std::cout << "Physical variables written to CSV file successfully.\n";
+        write_phys_var_to_multi_csv(phys_var, plt_filename);
+        std::cout << "Physical variables written to multiple CSV files successfully.\n";
+    }
+    std::cout << " n_x: " << hinfo.global_nx << ", n_y: " << hinfo.global_ny << ", n_z: " << hinfo.global_nz << "\n";
+    // print the domain size, range, cell size and time
+    std::cout << "Domain size: (" << hinfo.domain_hi[0] - hinfo.domain_lo[0] << ", "
+              << hinfo.domain_hi[1] - hinfo.domain_lo[1] << ", "
+              << hinfo.domain_hi[2] - hinfo.domain_lo[2] << ")\n";
+    std::cout << "Domain range: (" << hinfo.domain_lo[0] << ", "
+              << hinfo.domain_lo[1] << ", "
+              << hinfo.domain_lo[2] << ") to ("
+              << hinfo.domain_hi[0] << ", "
+              << hinfo.domain_hi[1] << ", "
+              << hinfo.domain_hi[2] << ")\n";
+    std::cout << "Cell size(in cm): (" << (hinfo.domain_hi[0]-hinfo.domain_lo[0])/hinfo.global_nx << ", "
+              << (hinfo.domain_hi[1]-hinfo.domain_lo[1])/hinfo.global_ny << ", "
+              << (hinfo.domain_hi[2]-hinfo.domain_lo[2])/hinfo.global_nz << ")\n";
+    double parsec_to_cm = 3085677581491367000; // 1 parsec in cm
+    std::cout << "Cell size(in parsec): (" 
+              << (hinfo.domain_hi[0]-hinfo.domain_lo[0])/(hinfo.global_nx * parsec_to_cm) << ", "
+              << (hinfo.domain_hi[1]-hinfo.domain_lo[1])/(hinfo.global_ny * parsec_to_cm) << ", "
+              << (hinfo.domain_hi[2]-hinfo.domain_lo[2])/(hinfo.global_nz * parsec_to_cm) << ")\n";
     return 0;
 }
 
