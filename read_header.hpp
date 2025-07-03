@@ -5,7 +5,26 @@
 #include <string>
 #include <filesystem>
 #include <algorithm>
+#include <boost/math/tools/roots.hpp>
+#include <boost/math/constants/constants.hpp>
+#include <cmath>
+#include <functional>
+#include <stdexcept>
 
+    // Define constants
+    constexpr double cloudy_H_mass_fraction = 1. / (1. + 0.1 * 3.971);
+    constexpr double X = cloudy_H_mass_fraction;
+    constexpr double Z = 0.02; // metal fraction by mass
+    constexpr double Y = 1. - X - Z;
+    constexpr double mean_metals_A = 16.; // mean atomic weight of metals
+    constexpr double k_B = 1.380649e-16;  // erg/K
+    constexpr double m_p = 1.6726219e-24; // g
+    constexpr double electron_mass_cgs = 9.10938356e-28; // g
+    constexpr double m_e = electron_mass_cgs; // Electron mass in g
+
+    double T_min = 1.0; // Minimum temperature in K
+    double T_max = 1e9; // Maximum temperature in K
+    double He_to_H_ratio = 0.1; // Assuming a constant ratio for simplicity
 
 struct Array3DView {
     const double* data_ptr;  // Pointer to external data
@@ -309,8 +328,31 @@ void print_var_value_at_coordinates(const std::vector<std::vector<std::vector<st
         std::cout << "Velocity_z (in cm/s) at (" << x << ", " << y << ", " << z << "): ";
     } else if (var_index==4) {
         std::cout << "Internal_energy (in ergs) at (" << x << ", " << y << ", " << z << "): ";
-    } 
-    else {
+    } else if (var_index==5) {
+        std::cout << " Temperature (in K) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==6) {
+        std::cout << "Electron Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==7) {
+        std::cout << "Hydrogen Number Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==8) {
+        std::cout << "Helium Number Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==9) {
+        std::cout << "Neutral Hydrogen Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==10) {
+        std::cout << "Neutral Helium Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==11) {
+        std::cout << "H+ Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==12) {
+        std::cout << "He+ Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==13) {
+        std::cout << "He++ Density (in cm^-3) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==14) {
+        std::cout << "Magnetic field_x (in Gauss) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==15) {
+        std::cout << "Magnetic field_y (in Gauss) at (" << x << ", " << y << ", " << z << "): ";
+    } else if (var_index==16) {
+        std::cout << "Magnetic field_z (in Gauss) at (" << x << ", " << y << ", " << z << "): ";
+    } else {
         std::cerr << "Unknown variable index.\n";
         return;
     }
@@ -391,10 +433,10 @@ void validate(const std::vector<std::vector<std::vector<std::vector<double>>>>& 
         }
     }
 
-    std::cout<< "Total mass of the domain is "<<total_amount(phys_var[0], hinfo)<< std::endl;
-    std::cout<< "Total Internal Energy of the domain is "<<total_amount(phys_var[4], hinfo)<< std::endl;
-
-        //Print the maximum and minimum values and positions of various physical parameters
+    std::cout<< "\nTotal mass of the domain is "<<total_amount(phys_var[0], hinfo)<< std::endl;
+    std::cout<< "Total Internal Energy of the domain is "<<total_amount(phys_var[4], hinfo)<< std::endl<< std::endl;
+    std::vector<int> is_negative_allowed_indices = {1, 2, 3, 14, 15, 16}; // Indices of variables where negative values are allowed
+    // Print the maximum and minimum values and positions of various physical parameters
     for (int var_idx = 0; var_idx < phys_var.size(); ++var_idx) {
             double min_val = std::numeric_limits<double>::max();
             double max_val = std::numeric_limits<double>::lowest();
@@ -404,6 +446,11 @@ void validate(const std::vector<std::vector<std::vector<std::vector<double>>>>& 
             for (int j = 0; j < phys_var[var_idx][i].size(); ++j) {
                 for (int k = 0; k < phys_var[var_idx][i][j].size(); ++k) {
                 double val = phys_var[var_idx][i][j][k];
+                // if (var_idx != 1 && var_idx != 2 && var_idx != 3 && var_idx <=13) { // Skip velocity components and Magnetic field components for min/max
+                //     if (val < 0) {
+                //         std::cerr << "Negative value found in variable " << var_idx << " at (" << i << ", " << j << ", " << k << "): " << val << "\n";
+                //     }
+                // }
                 if (val < min_val) {
                     min_val = val;
                     min_pos = std::make_tuple(i, j, k);
@@ -414,24 +461,207 @@ void validate(const std::vector<std::vector<std::vector<std::vector<double>>>>& 
                 }
                 }
             }
-            }
-    std::string var_name = hinfo.variable_names[var_idx];
-        if (var_name == "gasDensity") {
+        }
+        if (min_val < 0 && std::find(is_negative_allowed_indices.begin(), is_negative_allowed_indices.end(), var_idx) == is_negative_allowed_indices.end()) {
+            std::cerr << "Negative value found in variable " << var_idx << ": " << min_val << " at (" << std::get<0>(min_pos) << ", " << std::get<1>(min_pos) << ", " << std::get<2>(min_pos) << ")\n";
+        }
+        std::string var_name;
+        int var = var_idx; // Assuming var_idx corresponds to the variable index
+        if (var == 0) {
             var_name = "Density (g/cm^3)";
-        } else if (var_name == "x-GasMomentum") {
+        } else if (var == 1) {
             var_name = "Velocity_x (cm/s)";
-        } else if (var_name == "y-GasMomentum") {
+        } else if (var == 2) {
             var_name = "Velocity_y (cm/s)";
-        } else if (var_name == "z-GasMomentum") {
+        } else if (var == 3) {
             var_name = "Velocity_z (cm/s)";
-        } else if (var_name == "gasEnergy") {
+        } else if (var == 4) {
             var_name = "Internal Energy (ergs)";
+        } else if (var == 5) {
+            var_name = "Temperature (K)";
+        } else if (var == 6) {
+            var_name = "Electron Density (cm^-3)";
+        } else if (var ==7){
+            var_name = "Hydrogen Number Density (cm^-3)";
+        } else if (var == 8) {
+            var_name = "Relative Helium Number Density";
+        } else if (var == 9) {
+            var_name = "Relative Neutral Hydrogen Density";
+        } else if (var == 10) {
+            var_name = "Relative Neutral Helium Density";
+        } else if (var == 11) {
+            var_name = "Relative H+ Density";
+        } else if (var == 12) {
+            var_name = "Relative He+ Density";
+        } else if (var == 13) {
+            var_name = "Relative He++ Density";
+        } else if (var == 14) {
+            var_name = "Magnetic Field_x (G)";
+        } else if (var == 15) {
+            var_name = "Magnetic Field_y (G)";
+        } else if (var == 16) {
+            var_name = "Magnetic Field_z (G)";
+        } else {
+            var_name = "Unknown Variable";
         }
         std::cout << "Variable: " << var_name << " (index " << var_idx << "): "
                 << "min = " << min_val
                 << " at (" << std::get<0>(min_pos) << ", " << std::get<1>(min_pos) << ", " << std::get<2>(min_pos) << ")"
                 << ", max = " << max_val
                 << " at (" << std::get<0>(max_pos) << ", " << std::get<1>(max_pos) << ", " << std::get<2>(max_pos) << ")\n";
+
     }
 }
 
+
+//Calculating the temperature:
+
+//#include <boost/math/interpolators/bilinear.hpp>
+double bilinear_interpolate(double x, double y,
+                            const std::vector<double>& x_vals,
+                            const std::vector<double>& y_vals,
+                            const std::vector<std::vector<double>>& f_vals) {
+    size_t i = std::upper_bound(x_vals.begin(), x_vals.end(), x) - x_vals.begin() - 1;
+    size_t j = std::upper_bound(y_vals.begin(), y_vals.end(), y) - y_vals.begin() - 1;
+
+    double x1 = x_vals[i], x2 = x_vals[i+1];
+    double y1 = y_vals[j], y2 = y_vals[j+1];
+
+    double Q11 = f_vals[i][j];
+    double Q21 = f_vals[i+1][j];
+    double Q12 = f_vals[i][j+1];
+    double Q22 = f_vals[i+1][j+1];
+
+    double denom = (x2 - x1) * (y2 - y1);
+    return (Q11 * (x2 - x) * (y2 - y) +
+            Q21 * (x - x1) * (y2 - y) +
+            Q12 * (x2 - x) * (y - y1) +
+            Q22 * (x - x1) * (y - y1)) / denom;
+}
+
+std::function<double(double, double)>
+make_mu_interpolator(const std::vector<double>& Log_n_H_vals,
+                    const std::vector<double>& T_vals,
+                    const std::vector<std::vector<double>>& mu_table) {
+    return [=](double n_H, double T) {
+        return bilinear_interpolate(std::log10(n_H), T, Log_n_H_vals, T_vals, mu_table);
+    };
+}
+
+std::vector<double> read_vector_csv(const std::string& filename) {
+    std::vector<double> vec;
+    std::ifstream file(filename);
+    std::string line;
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        double val;
+        while (ss >> val) {
+            vec.push_back(val);
+            if (ss.peek() == ',') ss.ignore();
+        }
+    }
+    return vec;
+}
+
+std::vector<std::vector<double>> read_matrix_csv(const std::string& filename) {
+    std::vector<std::vector<double>> matrix;
+    std::ifstream file(filename);
+    std::string line;
+    
+    while (std::getline(file, line)) {
+        std::vector<double> row;
+        std::stringstream ss(line);
+        std::string val;
+        
+        while (std::getline(ss, val, ',')) {
+            row.push_back(std::stod(val));
+        }
+        matrix.push_back(row);
+    }
+
+    return matrix;
+}
+
+void write_3D_slice(const std::vector<std::vector<std::vector<double>>>& array3d,
+                         const std::string& filename) {
+    std::ofstream outfile(filename, std::ios::trunc);  // `trunc` ensures the file is cleared
+
+    if (!outfile.is_open()) {
+        std::cerr << "Error: Could not open file " << filename << " for writing.\n";
+        return;
+    }
+
+    int nx = array3d.size();
+    int ny = array3d[0].size();
+    int nz = array3d[0][0].size();
+
+    for (int i = 0; i < nx; ++i) {
+        for (int j = 0; j < ny; ++j) {
+            for (int k = 0; k < nz; ++k) {
+                outfile << array3d[i][j][k];
+                if (k < nz - 1) outfile << ",";  // Avoid trailing comma
+            }
+            outfile << "\n";
+        }
+        // outfile << "\n"; // Uncomment to separate x-slices for readability
+    }
+
+    outfile.close();
+    std::cout << "File " << filename << " written successfully.\n";
+}
+
+void write_phys_var_to_multi_csv(const std::vector<std::vector<std::vector<std::vector<double>>>>& phys_var,
+                            const std::string& plt_filename) {
+
+    std::string var_name;
+    for (int var = 0; var < phys_var.size(); ++var) {
+        if (var==0)  var_name = "Density";
+        else if (var==1) var_name = "Velocity_x";
+        else if (var==2) var_name = "Velocity_y";
+        else if (var==3) var_name = "Velocity_z";
+        else if (var==4) var_name = "Internal_energy";
+        else if (var==5) var_name = "Temperature";
+        else if (var==6) var_name = "Electron_density";
+        else if (var==7) var_name = "Hydrogen_number_density";
+        else if (var==8) var_name = "relative_Helium_number_density";
+        else if (var==9) var_name = "relative_Neutral_Hydrogen_density";
+        else if (var==10) var_name = "relative_Neutral_Helium_density";
+        else if (var==11) var_name = "relative_H+_density";
+        else if (var==12) var_name = "relative_He+_density";
+        else if (var==13) var_name = "relative_He++_density";
+        else if (var==14) var_name = "Magnetic_field_x";
+        else if (var==15) var_name = "Magnetic_field_y";
+        else if (var==16) var_name = "Magnetic_field_z";
+
+        // Write different csv files for each variable
+        write_3D_slice(phys_var[var], plt_filename + "_" + var_name + ".csv");
+    }
+    std::cout << "All physical variables written to separate CSV files." << std::endl;
+}
+
+void write_phys_var_to_single_csv(const std::vector<std::vector<std::vector<std::vector<double>>>>& phys_var,
+                            const std::string& plt_filename) {
+    std::ofstream outfile(plt_filename + ".csv", std::ios::trunc);  // `trunc` ensures the file is cleared
+    if (!outfile.is_open()) {
+        std::cerr << "Error: Could not open file " << plt_filename << " for writing.\n";
+        return;
+    }
+    int nx = phys_var[0].size();
+    int ny = phys_var[0][0].size();
+    int nz = phys_var[0][0][0].size();
+    for (int var = 0; var < phys_var.size(); ++var) {
+        for (int i = 0; i < nx; ++i) {
+            for (int j = 0; j < ny; ++j) {
+                for (int k = 0; k < nz; ++k) {
+                    outfile << phys_var[var][i][j][k];
+                    if (k < nz - 1) outfile << ",";  // Avoid trailing comma
+                }
+                outfile << "\n";
+            }
+            outfile << "\n"; // Separate x-slices for readability
+        }
+        outfile << "End of variable " << var << "\n"; // Separate variables for readability
+    }
+    outfile.close();
+    std::cout << "File " << plt_filename << " written successfully.\n";
+}
