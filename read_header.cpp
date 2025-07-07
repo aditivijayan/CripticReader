@@ -213,6 +213,28 @@ int main() {
         std::cerr << "Failed to calculate kinetic energy density.\n";
         return 1;
     }
+    //Computing the mass-density of Ionized part.
+    //Ionized mass density = total mass density - neutral mass density= total mass density - (n_H * (m_H + n_He * m_He)
+    std::vector<std::vector<std::vector<double>>> ionized_mass_density(hinfo.global_nx, std::vector<std::vector<double>>(hinfo.global_ny, std::vector<double>(hinfo.global_nz, 0.0)));
+    double m_H = 1.67e-24; // Mass of hydrogen atom in g
+    double m_He = 6.646e-24; // Mass of helium atom in g
+    for (int i = 0; i < hinfo.global_nx; ++i) {
+        for (int j = 0; j < hinfo.global_ny; ++j) {
+            for (int k = 0; k < hinfo.global_nz; ++k) {
+                // Calculate the mass density of ionized part
+                double n_H = phys_var[0][i][j][k] * X / m_p; // Number density of hydrogen
+                double n_He = n_H * He_to_H_ratio; // Number density of helium
+                double neutral_mass_density = n_H * m_H + n_He * m_He; // Mass density of neutral part
+                ionized_mass_density[i][j][k] = phys_var[0][i][j][k] - neutral_mass_density; // Total mass density
+                if (ionized_mass_density[i][j][k] < 0.0) {
+                    std::cout << "Negative ionized mass density at (" << i << ", " << j << ", " << k << "): " 
+                              << ionized_mass_density[i][j][k] << std::endl;
+                    ionized_mass_density[i][j][k] = 0.0; // Ensure no negative densities
+                }
+            }
+        }
+    }
+    phys_var.push_back(ionized_mass_density); // Add ionized mass density to phys_var
 
     //print the indices of the variables in phys_var
     std::cout << "Physical variables indices in phys_var:\n";
@@ -233,6 +255,7 @@ int main() {
     std::cout << "14: Magnetic Field X-component (G)\n";
     std::cout << "15: Magnetic Field Y-component (G)\n";
     std::cout << "16: Magnetic Field Z-component (G)\n";
+    std::cout << "17: Ionized Mass Density (g/cm^3)\n";
 
     std::vector<int> indices = {29, 6, 20}; // Example indices to validate
     //last argument is true, which means we want to validate the data along with printing the values at the specified indices. Turn it to false if you only want to validate the data without printing the values.
